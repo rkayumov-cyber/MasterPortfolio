@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import dash_bootstrap_components as dbc
 import pandas as pd
-from dash import Input, Output, State, callback, html, no_update
+from dash import Input, Output, State, callback, html, no_update, ALL
 
 from domain.schemas import (
     AllocationStrategy,
@@ -1136,3 +1136,276 @@ def register_callbacks(app):
         return (store_data, mc_chart, mc_stats, rolling_chart, risk_display,
                 calendar_chart, dividend_summary, dividend_chart, contribution_chart,
                 "Analysis complete")
+
+    # =========================================================================
+    # Rebalancing Calculator Callbacks
+    # =========================================================================
+
+    @app.callback(
+        Output("current-holdings-inputs", "children"),
+        Input("portfolio-store", "data"),
+    )
+    def generate_holdings_inputs(portfolio_data):
+        """Generate input fields for current holdings."""
+        if not portfolio_data or not portfolio_data.get("holdings"):
+            return html.P("Generate a portfolio first", className="text-muted")
+
+        inputs = []
+        for holding in portfolio_data["holdings"]:
+            ticker = holding["ticker"]
+            inputs.append(
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label(ticker, className="small"),
+                    ], width=3),
+                    dbc.Col([
+                        dbc.Input(
+                            id={"type": "holding-shares", "ticker": ticker},
+                            type="number",
+                            value=0,
+                            min=0,
+                            step=0.01,
+                            size="sm",
+                            placeholder="Shares",
+                        ),
+                    ], width=9),
+                ], className="mb-1")
+            )
+
+        return html.Div(inputs)
+
+    @app.callback(
+        [Output("rebalance-summary", "children"),
+         Output("rebalance-trades-table", "children"),
+         Output("expense-analysis", "children"),
+         Output("rebalance-store", "data")],
+        Input("calculate-rebalance-btn", "n_clicks"),
+        [State("portfolio-store", "data"),
+         State("rebalance-portfolio-value", "value"),
+         State("rebalance-cash", "value"),
+         State("rebalance-min-trade", "value"),
+         State({"type": "holding-shares", "ticker": ALL}, "value"),
+         State({"type": "holding-shares", "ticker": ALL}, "id")],
+        prevent_initial_call=True,
+    )
+    def calculate_rebalance(n_clicks, portfolio_data, portfolio_value, cash,
+                           min_trade, shares_values, shares_ids):
+        """Calculate rebalancing trades and expense analysis."""
+        from engines.rebalancing import (
+            calculate_rebalance_trades,
+            analyze_portfolio_expenses,
+        )
+
+        if not n_clicks or not portfolio_data:
+            return (
+                html.P("Generate a portfolio first", className="text-muted"),
+                html.P("No trades to display", className="text-muted"),
+                html.P("No expense data", className="text-muted"),
+                None,
+            )
+
+        # Build portfolio
+        holdings = [
+            PortfolioHolding(ticker=h["ticker"], weight=h["weight"])
+            for h in portfolio_data["holdings"]
+        ]
+        portfolio = Portfolio(holdings=holdings)
+
+        # Parse current holdings
+        current_holdings = {}
+        if shares_values and shares_ids:
+            for shares, id_dict in zip(shares_values, shares_ids):
+                if shares and shares > 0:
+                    ticker = id_dict.get("ticker")
+                    if ticker:
+                        current_holdings[ticker] = float(shares)
+
+        # Calculate rebalance
+        result = calculate_rebalance_trades(
+            portfolio=portfolio,
+            portfolio_value=portfolio_value or 10000,
+            current_holdings=current_holdings if current_holdings else None,
+            cash_balance=cash or 0,
+            min_trade_value=min_trade or 25,
+        )
+
+        # Build summary cards
+        summary = dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"${result.total_buys:,.0f}", className="text-success"),
+                        html.P("Total Buys", className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"${result.total_sells:,.0f}", className="text-danger"),
+                        html.P("Total Sells", className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"${abs(result.net_cash_flow):,.0f}",
+                               className="text-primary"),
+                        html.P("Net " + ("Need" if result.net_cash_flow > 0 else "Excess"),
+                               className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"{result.turnover:.1%}"),
+                        html.P("Turnover", className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"{result.num_trades}"),
+                        html.P("Trades", className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(f"${result.new_cash_balance:,.0f}",
+                               className="text-info" if result.new_cash_balance >= 0 else "text-warning"),
+                        html.P("Cash After", className="text-muted mb-0 small"),
+                    ]),
+                ], className="text-center"),
+            ], md=2),
+        ])
+
+        # Build trades table
+        if result.trades:
+            trades_table = dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Action"),
+                        html.Th("Ticker"),
+                        html.Th("Shares"),
+                        html.Th("Price"),
+                        html.Th("Trade Value"),
+                        html.Th("Target Weight"),
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(
+                            dbc.Badge(t.action, color="success" if t.action == "BUY" else "danger")
+                        ),
+                        html.Td([
+                            html.Strong(t.ticker),
+                            html.Br(),
+                            html.Small(t.name[:25] + "..." if len(t.name) > 25 else t.name,
+                                      className="text-muted"),
+                        ]),
+                        html.Td(f"{t.shares_to_trade:.2f}"),
+                        html.Td(f"${t.price:.2f}"),
+                        html.Td(f"${t.trade_value:,.0f}"),
+                        html.Td(f"{t.target_weight:.1%}"),
+                    ])
+                    for t in result.trades
+                ]),
+            ], striped=True, hover=True, size="sm", responsive=True)
+        else:
+            trades_table = html.P("Portfolio is already balanced (no trades needed)",
+                                 className="text-success")
+
+        # Calculate expense analysis
+        expense_result = analyze_portfolio_expenses(portfolio, portfolio_value or 10000)
+
+        expense_display = html.Div([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"{expense_result.weighted_expense_ratio:.3%}",
+                                   className="text-primary"),
+                            html.P("Weighted Expense Ratio", className="text-muted mb-0"),
+                        ]),
+                    ], className="text-center"),
+                ], md=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"${expense_result.annual_cost_per_10k:.0f}",
+                                   className="text-warning"),
+                            html.P(f"Annual Cost on ${portfolio_value or 10000:,}",
+                                  className="text-muted mb-0"),
+                        ]),
+                    ], className="text-center"),
+                ], md=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"${expense_result.annual_cost_per_10k * 10:.0f}"),
+                            html.P("10-Year Cost (Cumulative)", className="text-muted mb-0"),
+                        ]),
+                    ], className="text-center"),
+                ], md=4),
+            ], className="mb-3"),
+
+            html.H6("Expense Breakdown by Holding", className="mt-3"),
+            dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Ticker"),
+                        html.Th("Weight"),
+                        html.Th("Expense Ratio"),
+                        html.Th("Annual Cost"),
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(h["ticker"]),
+                        html.Td(f"{h['weight']:.1%}"),
+                        html.Td(f"{h['expense_ratio']:.2%}"),
+                        html.Td(f"${h['annual_cost']:.2f}"),
+                    ])
+                    for h in expense_result.holdings_expenses
+                ]),
+            ], striped=True, size="sm"),
+
+            dbc.Alert([
+                html.Strong("Cheapest: "),
+                f"{expense_result.cheapest_holding.get('ticker', 'N/A')} ",
+                f"({expense_result.cheapest_holding.get('expense_ratio', 0):.2%})",
+                html.Br(),
+                html.Strong("Most Expensive: "),
+                f"{expense_result.most_expensive_holding.get('ticker', 'N/A')} ",
+                f"({expense_result.most_expensive_holding.get('expense_ratio', 0):.2%})",
+            ], color="info", className="mt-3"),
+        ])
+
+        # Store data
+        store_data = {
+            "trades": [
+                {
+                    "ticker": t.ticker,
+                    "action": t.action,
+                    "shares": t.shares_to_trade,
+                    "value": t.trade_value,
+                }
+                for t in result.trades
+            ],
+            "summary": {
+                "total_buys": result.total_buys,
+                "total_sells": result.total_sells,
+                "turnover": result.turnover,
+            },
+            "expenses": {
+                "weighted_ratio": expense_result.weighted_expense_ratio,
+                "annual_cost": expense_result.annual_cost_per_10k,
+            },
+        }
+
+        return summary, trades_table, expense_display, store_data

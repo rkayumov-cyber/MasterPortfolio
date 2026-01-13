@@ -25,6 +25,7 @@ def create_app_layout() -> dbc.Container:
         dbc.Tabs([
             dbc.Tab(create_portfolio_tab(), label="Portfolio Builder", tab_id="tab-portfolio"),
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
+            dbc.Tab(create_rebalancing_tab(), label="Rebalance", tab_id="tab-rebalance"),
             dbc.Tab(create_analytics_tab(), label="Analytics", tab_id="tab-analytics"),
             dbc.Tab(create_advanced_analytics_tab(), label="Advanced", tab_id="tab-advanced"),
             dbc.Tab(create_diversification_tab(), label="Diversification", tab_id="tab-diversification"),
@@ -39,6 +40,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="hedge-store", storage_type="memory"),
         dcc.Store(id="comparison-store", storage_type="memory"),
         dcc.Store(id="advanced-analytics-store", storage_type="memory"),
+        dcc.Store(id="rebalance-store", storage_type="memory"),
 
     ], fluid=True)
 
@@ -370,6 +372,89 @@ def create_backtest_tab() -> dbc.Container:
                     ]),
                 ]),
             ], md=9),
+        ]),
+    ], fluid=True, className="py-3")
+
+
+def create_rebalancing_tab() -> dbc.Container:
+    """Create the Rebalancing Calculator tab."""
+    return dbc.Container([
+        dbc.Row([
+            # Controls
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Current Holdings"),
+                    dbc.CardBody([
+                        html.Label("Portfolio Value ($)", className="fw-bold"),
+                        dbc.Input(
+                            id="rebalance-portfolio-value",
+                            type="number",
+                            value=10000,
+                            min=100,
+                            step=100,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Cash Available ($)", className="fw-bold"),
+                        dbc.Input(
+                            id="rebalance-cash",
+                            type="number",
+                            value=0,
+                            min=0,
+                            step=100,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Min Trade Size ($)", className="fw-bold"),
+                        dbc.Input(
+                            id="rebalance-min-trade",
+                            type="number",
+                            value=25,
+                            min=0,
+                            step=5,
+                            className="mb-3",
+                        ),
+
+                        html.Hr(),
+
+                        html.Label("Current Shares (optional)", className="fw-bold"),
+                        html.P("Enter current holdings to see rebalance trades",
+                               className="text-muted small"),
+
+                        html.Div(id="current-holdings-inputs"),
+
+                        dbc.Button(
+                            "Calculate Rebalance",
+                            id="calculate-rebalance-btn",
+                            color="primary",
+                            size="lg",
+                            className="w-100 mt-3",
+                        ),
+                    ]),
+                ]),
+            ], md=4),
+
+            # Results
+            dbc.Col([
+                # Summary cards
+                html.Div(id="rebalance-summary", className="mb-3"),
+
+                # Trades table
+                dbc.Card([
+                    dbc.CardHeader("Rebalancing Trades"),
+                    dbc.CardBody([
+                        html.Div(id="rebalance-trades-table"),
+                    ]),
+                ], className="mb-3"),
+
+                # Expense Analysis
+                dbc.Card([
+                    dbc.CardHeader("Expense Analysis"),
+                    dbc.CardBody([
+                        html.Div(id="expense-analysis"),
+                    ]),
+                ]),
+            ], md=8),
         ]),
     ], fluid=True, className="py-3")
 
