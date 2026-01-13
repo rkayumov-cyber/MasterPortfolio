@@ -27,6 +27,7 @@ def create_app_layout() -> dbc.Container:
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
             dbc.Tab(create_analytics_tab(), label="Analytics", tab_id="tab-analytics"),
             dbc.Tab(create_diversification_tab(), label="Diversification", tab_id="tab-diversification"),
+            dbc.Tab(create_comparison_tab(), label="Compare Strategies", tab_id="tab-compare"),
             dbc.Tab(create_hedges_tab(), label="Hedges", tab_id="tab-hedges"),
             dbc.Tab(create_export_tab(), label="Export", tab_id="tab-export"),
         ], id="main-tabs", active_tab="tab-portfolio"),
@@ -35,6 +36,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="portfolio-store", storage_type="memory"),
         dcc.Store(id="backtest-store", storage_type="memory"),
         dcc.Store(id="hedge-store", storage_type="memory"),
+        dcc.Store(id="comparison-store", storage_type="memory"),
 
     ], fluid=True)
 
@@ -335,6 +337,108 @@ def create_analytics_tab() -> dbc.Container:
                     ]),
                 ]),
             ]),
+        ]),
+    ], fluid=True, className="py-3")
+
+
+def create_comparison_tab() -> dbc.Container:
+    """Create the Strategy Comparison tab."""
+    default_end = date.today()
+    default_start = default_end - timedelta(days=365 * 5)
+
+    return dbc.Container([
+        dbc.Row([
+            # Controls
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Comparison Settings"),
+                    dbc.CardBody([
+                        html.Label("Date Range", className="fw-bold"),
+                        dcc.DatePickerRange(
+                            id="compare-date-range",
+                            start_date=default_start,
+                            end_date=default_end,
+                            max_date_allowed=default_end,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Rebalancing Frequency", className="fw-bold"),
+                        dcc.Dropdown(
+                            id="compare-rebalance-dropdown",
+                            options=[
+                                {"label": "Monthly", "value": "Monthly"},
+                                {"label": "Quarterly", "value": "Quarterly"},
+                                {"label": "Annual", "value": "Annual"},
+                            ],
+                            value="Quarterly",
+                            clearable=False,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Strategies to Compare", className="fw-bold"),
+                        dcc.Checklist(
+                            id="compare-strategies-checklist",
+                            options=[
+                                {"label": " Strategic", "value": "Strategic"},
+                                {"label": " 60/40", "value": "60/40"},
+                                {"label": " Growth", "value": "Growth"},
+                                {"label": " Conservative", "value": "Conservative"},
+                                {"label": " Aggressive", "value": "Aggressive"},
+                                {"label": " Income", "value": "Income"},
+                                {"label": " All Weather", "value": "All Weather"},
+                                {"label": " Risk Parity", "value": "Risk Parity"},
+                                {"label": " Equal Weight", "value": "Equal Weight"},
+                            ],
+                            value=["60/40", "Growth", "Conservative", "All Weather"],
+                            className="mb-3",
+                            inputClassName="me-1",
+                            labelClassName="d-block mb-1",
+                        ),
+
+                        dbc.Button(
+                            "Run Comparison",
+                            id="run-comparison-btn",
+                            color="primary",
+                            size="lg",
+                            className="w-100 mb-2",
+                        ),
+
+                        dbc.Spinner(
+                            html.Div(id="comparison-loading"),
+                            color="primary",
+                            type="border",
+                            size="sm",
+                        ),
+                    ]),
+                ]),
+            ], md=3),
+
+            # Results
+            dbc.Col([
+                # Metrics comparison table
+                dbc.Card([
+                    dbc.CardHeader("Performance Metrics Comparison"),
+                    dbc.CardBody([
+                        html.Div(id="comparison-metrics-table"),
+                    ]),
+                ], className="mb-3"),
+
+                # Equity curves overlay
+                dbc.Card([
+                    dbc.CardHeader("Equity Curves"),
+                    dbc.CardBody([
+                        dcc.Graph(id="comparison-equity-chart"),
+                    ]),
+                ], className="mb-3"),
+
+                # Drawdown comparison
+                dbc.Card([
+                    dbc.CardHeader("Drawdown Comparison"),
+                    dbc.CardBody([
+                        dcc.Graph(id="comparison-drawdown-chart"),
+                    ]),
+                ]),
+            ], md=9),
         ]),
     ], fluid=True, className="py-3")
 

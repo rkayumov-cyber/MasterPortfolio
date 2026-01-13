@@ -283,6 +283,98 @@ def create_rolling_chart(
     return fig
 
 
+def create_comparison_equity_chart(
+    strategy_curves: dict[str, list[dict]],
+    title: str = "Strategy Comparison - Equity Curves",
+) -> go.Figure:
+    """Create overlay chart of multiple strategy equity curves."""
+    fig = go.Figure()
+
+    # Color palette for strategies
+    colors = [
+        "#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3B1F2B",
+        "#44AF69", "#FCAB10", "#2D3047", "#93B7BE",
+    ]
+
+    for i, (strategy_name, equity_data) in enumerate(strategy_curves.items()):
+        if not equity_data:
+            continue
+        df = pd.DataFrame(equity_data)
+        color = colors[i % len(colors)]
+
+        fig.add_trace(go.Scatter(
+            x=df["date"],
+            y=df["portfolio_value"],
+            mode="lines",
+            name=strategy_name,
+            line=dict(color=color, width=2),
+        ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Growth of $10,000",
+        hovermode="x unified",
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255,255,255,0.8)",
+        ),
+        margin=dict(l=50, r=30, t=50, b=50),
+        yaxis_tickformat="$,.0f",
+    )
+
+    return fig
+
+
+def create_comparison_drawdown_chart(
+    strategy_drawdowns: dict[str, list[dict]],
+    title: str = "Strategy Comparison - Drawdowns",
+) -> go.Figure:
+    """Create overlay chart of multiple strategy drawdowns."""
+    fig = go.Figure()
+
+    # Color palette for strategies
+    colors = [
+        "#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3B1F2B",
+        "#44AF69", "#FCAB10", "#2D3047", "#93B7BE",
+    ]
+
+    for i, (strategy_name, drawdown_data) in enumerate(strategy_drawdowns.items()):
+        if not drawdown_data:
+            continue
+        df = pd.DataFrame(drawdown_data)
+        color = colors[i % len(colors)]
+
+        fig.add_trace(go.Scatter(
+            x=df["date"],
+            y=df["drawdown"],
+            mode="lines",
+            name=strategy_name,
+            line=dict(color=color, width=1.5),
+        ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Drawdown",
+        yaxis_tickformat=".1%",
+        hovermode="x unified",
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255,255,255,0.8)",
+        ),
+        margin=dict(l=50, r=30, t=50, b=50),
+    )
+
+    return fig
+
+
 def create_hedge_recommendations_table(recommendations: list[dict]) -> go.Figure:
     """Create table figure for hedge recommendations."""
     if not recommendations:

@@ -597,3 +597,144 @@ def register_callbacks(app):
             items.append(html.Li("Backtest: Not run", className="text-muted"))
 
         return html.Ul(items)
+
+    # =========================================================================
+    # Strategy Comparison Callbacks
+    # =========================================================================
+
+    @app.callback(
+        [Output("comparison-store", "data"),
+         Output("comparison-metrics-table", "children"),
+         Output("comparison-equity-chart", "figure"),
+         Output("comparison-drawdown-chart", "figure"),
+         Output("comparison-loading", "children")],
+        Input("run-comparison-btn", "n_clicks"),
+        [State("compare-date-range", "start_date"),
+         State("compare-date-range", "end_date"),
+         State("compare-rebalance-dropdown", "value"),
+         State("compare-strategies-checklist", "value")],
+        prevent_initial_call=True,
+    )
+    def run_strategy_comparison(n_clicks, start_date, end_date, rebalance, strategies):
+        """Run comparison of multiple strategies."""
+        from ui.charts import create_comparison_equity_chart, create_comparison_drawdown_chart
+
+        if not n_clicks or not strategies:
+            return no_update, no_update, no_update, no_update, "Select at least one strategy"
+
+        # Parse dates
+        if isinstance(start_date, str):
+            start_date = date.fromisoformat(start_date.split("T")[0])
+        if isinstance(end_date, str):
+            end_date = date.fromisoformat(end_date.split("T")[0])
+
+        # Map strategy names to enums
+        strategy_map = {
+            "Strategic": AllocationStrategy.STRATEGIC,
+            "Risk Parity": AllocationStrategy.RISK_PARITY,
+            "Equal Weight": AllocationStrategy.EQUAL_WEIGHT,
+            "60/40": AllocationStrategy.CLASSIC_60_40,
+            "Growth": AllocationStrategy.GROWTH,
+            "Conservative": AllocationStrategy.CONSERVATIVE,
+            "Aggressive": AllocationStrategy.AGGRESSIVE,
+            "Income": AllocationStrategy.INCOME,
+            "All Weather": AllocationStrategy.ALL_WEATHER,
+        }
+
+        results = {}
+        equity_curves = {}
+        drawdown_curves = {}
+        metrics_data = []
+
+        for strategy_name in strategies:
+            strategy_enum = strategy_map.get(strategy_name)
+            if not strategy_enum:
+                continue
+
+            # Build portfolio for this strategy
+            if strategy_name == "Risk Parity":
+                request = PortfolioRequest(
+                    strategy=strategy_enum,
+                    risk_parity_config=RiskParityConfig(
+                        universe="balanced",
+                        method="inverse_vol",
+                    ),
+                )
+            else:
+                request = PortfolioRequest(strategy=strategy_enum)
+
+            portfolio = build_portfolio(request)
+
+            if not portfolio.holdings:
+                continue
+
+            # Run backtest
+            holdings = [
+                PortfolioHolding(ticker=h.ticker, weight=h.weight)
+                for h in portfolio.holdings
+            ]
+
+            backtest_request = BacktestRequest(
+                portfolio=holdings,
+                start_date=start_date,
+                end_date=end_date,
+                rebalance=RebalanceFrequency(rebalance),
+                benchmark=BenchmarkConfig(ticker="SPY"),
+                costs=CostConfig(enabled=True),
+            )
+
+            try:
+                result = run_backtest(backtest_request)
+
+                # Store results
+                results[strategy_name] = result
+                equity_curves[strategy_name] = result.equity_curve
+                drawdown_curves[strategy_name] = result.drawdown_curve
+
+                # Collect metrics
+                metrics_data.append({
+                    "Strategy": strategy_name,
+                    "Total Return": f"{result.metrics.total_return:.1%}",
+                    "CAGR": f"{result.metrics.cagr:.1%}",
+                    "Volatility": f"{result.metrics.volatility:.1%}",
+                    "Sharpe": f"{result.metrics.sharpe_ratio:.2f}",
+                    "Sortino": f"{result.metrics.sortino_ratio:.2f}",
+                    "Max DD": f"{result.metrics.max_drawdown:.1%}",
+                })
+            except Exception as e:
+                # Skip failed backtests
+                continue
+
+        if not results:
+            return no_update, "No valid results", {}, {}, "Backtest failed for all strategies"
+
+        # Create metrics table
+        metrics_df = pd.DataFrame(metrics_data)
+
+        # Sort by Sharpe ratio (descending)
+        metrics_df["_sharpe_num"] = metrics_df["Sharpe"].apply(lambda x: float(x))
+        metrics_df = metrics_df.sort_values("_sharpe_num", ascending=False)
+        metrics_df = metrics_df.drop("_sharpe_num", axis=1)
+
+        table = dbc.Table.from_dataframe(
+            metrics_df,
+            striped=True,
+            bordered=True,
+            hover=True,
+            responsive=True,
+            className="small",
+        )
+
+        # Create charts
+        equity_chart = create_comparison_equity_chart(equity_curves)
+        drawdown_chart = create_comparison_drawdown_chart(drawdown_curves)
+
+        # Store data for export
+        store_data = {
+            "metrics": metrics_data,
+            "strategies": strategies,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+        }
+
+        return store_data, table, equity_chart, drawdown_chart, f"Compared {len(results)} strategies"
