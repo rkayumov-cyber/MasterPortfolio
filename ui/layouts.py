@@ -198,6 +198,74 @@ def create_portfolio_tab() -> dbc.Container:
                         html.Div(id="portfolio-display"),
                         dcc.Graph(id="holdings-chart"),
                     ]),
+                ], className="mb-3"),
+
+                # Save/Load section
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("Save & Load Portfolios"),
+                        dbc.Button(
+                            "Expand",
+                            id="toggle-save-load-btn",
+                            color="link",
+                            size="sm",
+                            className="float-end p-0",
+                        ),
+                    ]),
+                    dbc.Collapse([
+                        dbc.CardBody([
+                            dbc.Row([
+                                # Save section
+                                dbc.Col([
+                                    html.Label("Save Current Portfolio", className="fw-bold"),
+                                    dbc.InputGroup([
+                                        dbc.Input(
+                                            id="save-portfolio-name",
+                                            placeholder="Enter portfolio name...",
+                                            type="text",
+                                        ),
+                                        dbc.Button(
+                                            "Save",
+                                            id="save-portfolio-btn",
+                                            color="success",
+                                        ),
+                                    ], className="mb-2"),
+                                    html.Div(id="save-portfolio-feedback"),
+                                ], md=6),
+
+                                # Load section
+                                dbc.Col([
+                                    html.Label("Load Saved Portfolio", className="fw-bold"),
+                                    dbc.InputGroup([
+                                        dcc.Dropdown(
+                                            id="load-portfolio-dropdown",
+                                            placeholder="Select portfolio...",
+                                            className="flex-grow-1",
+                                            style={"minWidth": "200px"},
+                                        ),
+                                        dbc.Button(
+                                            "Load",
+                                            id="load-portfolio-btn",
+                                            color="primary",
+                                        ),
+                                        dbc.Button(
+                                            "Delete",
+                                            id="delete-portfolio-btn",
+                                            color="danger",
+                                            outline=True,
+                                        ),
+                                    ], className="mb-2"),
+                                    html.Div(id="load-portfolio-feedback"),
+                                ], md=6),
+                            ]),
+
+                            html.Hr(),
+
+                            # Saved portfolios list
+                            html.Label("Saved Portfolios", className="fw-bold"),
+                            html.Div(id="saved-portfolios-list"),
+                        ]),
+                    ], id="save-load-collapse", is_open=False),
                 ]),
             ], md=8),
         ]),

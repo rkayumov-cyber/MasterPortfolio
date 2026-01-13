@@ -47,3 +47,6 @@ Thumbs.db
 .claude/
 tmpclaude-*
 nul
+
+# Saved portfolios (user data)
+saved_portfolios/

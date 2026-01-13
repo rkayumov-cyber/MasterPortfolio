@@ -171,6 +171,154 @@ def register_callbacks(app):
         return store_data, display, chart
 
     # =========================================================================
+    # Portfolio Save/Load Callbacks
+    # =========================================================================
+
+    @app.callback(
+        Output("save-load-collapse", "is_open"),
+        Input("toggle-save-load-btn", "n_clicks"),
+        State("save-load-collapse", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_save_load(n_clicks, is_open):
+        """Toggle the save/load section."""
+        return not is_open
+
+    @app.callback(
+        [Output("save-portfolio-feedback", "children"),
+         Output("load-portfolio-dropdown", "options"),
+         Output("saved-portfolios-list", "children")],
+        [Input("save-portfolio-btn", "n_clicks"),
+         Input("delete-portfolio-btn", "n_clicks"),
+         Input("save-load-collapse", "is_open")],
+        [State("save-portfolio-name", "value"),
+         State("portfolio-store", "data"),
+         State("load-portfolio-dropdown", "value"),
+         State("strategy-dropdown", "value")],
+        prevent_initial_call=True,
+    )
+    def handle_save_delete(save_clicks, delete_clicks, is_open,
+                           portfolio_name, portfolio_data, selected_portfolio, strategy):
+        """Handle saving and deleting portfolios."""
+        from dash import ctx
+        from services.portfolio_storage import (
+            save_portfolio, delete_portfolio, list_portfolios, get_portfolio_names
+        )
+
+        feedback = ""
+        triggered = ctx.triggered_id
+
+        # Handle save
+        if triggered == "save-portfolio-btn" and save_clicks:
+            if not portfolio_data:
+                feedback = dbc.Alert("Generate a portfolio first", color="warning", duration=3000)
+            elif not portfolio_name:
+                feedback = dbc.Alert("Enter a portfolio name", color="warning", duration=3000)
+            else:
+                result = save_portfolio(
+                    name=portfolio_name,
+                    holdings=portfolio_data.get("holdings", []),
+                    notes=portfolio_data.get("notes", []),
+                    strategy=strategy,
+                )
+                color = "success" if result["success"] else "danger"
+                feedback = dbc.Alert(result["message"], color=color, duration=3000)
+
+        # Handle delete
+        elif triggered == "delete-portfolio-btn" and delete_clicks:
+            if not selected_portfolio:
+                feedback = dbc.Alert("Select a portfolio to delete", color="warning", duration=3000)
+            else:
+                result = delete_portfolio(selected_portfolio)
+                color = "success" if result["success"] else "danger"
+                feedback = dbc.Alert(result["message"], color=color, duration=3000)
+
+        # Refresh dropdown options
+        options = [{"label": name, "value": name} for name in get_portfolio_names()]
+
+        # Build saved portfolios list
+        portfolios = list_portfolios()
+        if portfolios:
+            portfolio_list = dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Name"),
+                        html.Th("Holdings"),
+                        html.Th("Strategy"),
+                        html.Th("Updated"),
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(p["name"]),
+                        html.Td(p["holdings_count"]),
+                        html.Td(p["strategy"] or "-"),
+                        html.Td(p["updated_at"][:10] if p["updated_at"] else "-"),
+                    ])
+                    for p in portfolios
+                ]),
+            ], striped=True, hover=True, size="sm")
+        else:
+            portfolio_list = html.P("No saved portfolios", className="text-muted")
+
+        return feedback, options, portfolio_list
+
+    @app.callback(
+        [Output("portfolio-store", "data", allow_duplicate=True),
+         Output("portfolio-display", "children", allow_duplicate=True),
+         Output("holdings-chart", "figure", allow_duplicate=True),
+         Output("load-portfolio-feedback", "children")],
+        Input("load-portfolio-btn", "n_clicks"),
+        State("load-portfolio-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def load_saved_portfolio(n_clicks, portfolio_name):
+        """Load a saved portfolio."""
+        from services.portfolio_storage import load_portfolio
+
+        if not n_clicks or not portfolio_name:
+            return no_update, no_update, no_update, dbc.Alert(
+                "Select a portfolio to load", color="warning", duration=3000
+            )
+
+        portfolio_data = load_portfolio(portfolio_name)
+
+        if not portfolio_data:
+            return no_update, no_update, no_update, dbc.Alert(
+                f"Portfolio '{portfolio_name}' not found", color="danger", duration=3000
+            )
+
+        holdings = portfolio_data.get("holdings", [])
+        notes = portfolio_data.get("notes", [])
+        strategy = portfolio_data.get("strategy", "Unknown")
+
+        # Create display
+        display = html.Div([
+            html.H5(f"Portfolio: {portfolio_name}"),
+            html.P(f"Strategy: {strategy}", className="text-muted"),
+            html.Hr(),
+            html.Ul([
+                html.Li(f"{h['ticker']}: {h['weight']:.1%} - {h.get('rationale', '')}")
+                for h in holdings
+            ]),
+            html.Hr(),
+            html.Small([html.P(note) for note in notes], className="text-muted"),
+        ])
+
+        # Create chart
+        chart = create_holdings_bar(holdings)
+
+        # Store data
+        store_data = {
+            "holdings": holdings,
+            "notes": notes,
+        }
+
+        feedback = dbc.Alert(f"Loaded '{portfolio_name}'", color="success", duration=3000)
+
+        return store_data, display, chart, feedback
+
+    # =========================================================================
     # Backtest Callbacks
     # =========================================================================
 
