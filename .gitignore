@@ -50,3 +50,6 @@ nul
 
 # Saved portfolios (user data)
 saved_portfolios/
+
+# Sample/test files
+sample_portfolio.csv

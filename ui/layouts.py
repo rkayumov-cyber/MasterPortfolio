@@ -271,6 +271,84 @@ def create_portfolio_tab() -> dbc.Container:
                         ]),
                     ], id="save-load-collapse", is_open=False),
                 ]),
+
+                # Import from CSV section
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("Import from CSV"),
+                        dbc.Button(
+                            "Expand",
+                            id="toggle-import-btn",
+                            color="link",
+                            size="sm",
+                            className="float-end p-0",
+                        ),
+                    ]),
+                    dbc.Collapse([
+                        dbc.CardBody([
+                            html.P(
+                                "Upload a CSV file from your brokerage to import your existing holdings.",
+                                className="text-muted small"
+                            ),
+                            dcc.Upload(
+                                id="csv-upload",
+                                children=html.Div([
+                                    html.I(className="bi bi-cloud-upload me-2"),
+                                    "Drag & drop or ",
+                                    html.A("click to select", className="text-primary"),
+                                    " a CSV file"
+                                ]),
+                                style={
+                                    "width": "100%",
+                                    "height": "80px",
+                                    "lineHeight": "80px",
+                                    "borderWidth": "2px",
+                                    "borderStyle": "dashed",
+                                    "borderRadius": "5px",
+                                    "textAlign": "center",
+                                    "cursor": "pointer",
+                                },
+                                className="mb-3",
+                            ),
+                            html.Div(id="import-status"),
+                            html.Div(id="import-preview", className="mt-3"),
+                            html.Div([
+                                dbc.Button(
+                                    "Use Imported Portfolio",
+                                    id="use-import-btn",
+                                    color="success",
+                                    className="me-2",
+                                    style={"display": "none"},
+                                ),
+                                dbc.Button(
+                                    "Clear",
+                                    id="clear-import-btn",
+                                    color="secondary",
+                                    outline=True,
+                                    style={"display": "none"},
+                                ),
+                            ], className="mt-2"),
+                            html.Hr(),
+                            html.Details([
+                                html.Summary("Supported Formats", className="text-muted small"),
+                                html.Div([
+                                    html.P("The importer auto-detects columns from most brokerages:",
+                                          className="small mb-1 mt-2"),
+                                    html.Ul([
+                                        html.Li("Fidelity, Schwab, Vanguard, TD Ameritrade", className="small"),
+                                        html.Li("E*Trade, Interactive Brokers, Robinhood", className="small"),
+                                        html.Li("Any CSV with: Symbol, Shares, Value columns", className="small"),
+                                    ]),
+                                    html.P("Sample format:", className="small mb-1 mt-2"),
+                                    html.Pre(
+                                        "Symbol,Shares,Price,Value\nSPY,100,450.00,45000\nVTI,50,220.00,11000",
+                                        className="small bg-light p-2 rounded",
+                                    ),
+                                ]),
+                            ]),
+                        ]),
+                    ], id="import-collapse", is_open=False),
+                ], className="mt-3"),
             ], md=8),
         ]),
     ], fluid=True, className="py-3")

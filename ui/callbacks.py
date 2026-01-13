@@ -1633,3 +1633,187 @@ def register_callbacks(app):
                 ]),
             ], size="sm", striped=True) if alternatives else "",
         ])
+
+    # =========================================================================
+    # Portfolio Import Callbacks
+    # =========================================================================
+
+    @app.callback(
+        Output("import-collapse", "is_open"),
+        Input("toggle-import-btn", "n_clicks"),
+        State("import-collapse", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_import_section(n_clicks, is_open):
+        """Toggle the import section."""
+        return not is_open
+
+    @app.callback(
+        [Output("import-status", "children"),
+         Output("import-preview", "children"),
+         Output("use-import-btn", "style"),
+         Output("clear-import-btn", "style"),
+         Output("csv-upload", "contents", allow_duplicate=True)],
+        [Input("csv-upload", "contents"),
+         Input("clear-import-btn", "n_clicks")],
+        [State("csv-upload", "filename")],
+        prevent_initial_call=True,
+    )
+    def handle_csv_upload(contents, clear_clicks, filename):
+        """Handle CSV file upload and parse contents."""
+        from dash import ctx
+        from services.portfolio_import import parse_uploaded_file, convert_to_portfolio_weights
+
+        triggered = ctx.triggered_id
+        show_btn = {"display": "inline-block"}
+        hide_btn = {"display": "none"}
+
+        # Handle clear button
+        if triggered == "clear-import-btn":
+            return "", "", hide_btn, hide_btn, None
+
+        if not contents:
+            return "", "", hide_btn, hide_btn, no_update
+
+        # Parse the uploaded file
+        result = parse_uploaded_file(contents, filename or "upload.csv")
+
+        if not result.success:
+            status = dbc.Alert(
+                [html.Strong("Import Error: "), result.error],
+                color="danger",
+            )
+            return status, "", hide_btn, hide_btn, no_update
+
+        # Convert to weights
+        holdings, total_value, warnings = convert_to_portfolio_weights(result.holdings)
+
+        if not holdings:
+            status = dbc.Alert(
+                "Could not calculate portfolio weights",
+                color="danger",
+            )
+            return status, "", hide_btn, hide_btn, no_update
+
+        # Build status message
+        status_items = [
+            f"Found {len(result.holdings)} holdings",
+            f"Total value: ${total_value:,.0f}",
+            f"Matched ETFs: {result.matched_etfs}/{len(result.holdings)}",
+        ]
+        if result.unmatched_tickers:
+            status_items.append(f"Unmatched: {len(result.unmatched_tickers)}")
+
+        status = dbc.Alert(
+            [
+                html.Strong("Import Successful! "),
+                " | ".join(status_items),
+            ],
+            color="success",
+        )
+
+        # Build warnings if any
+        warning_display = ""
+        all_warnings = result.warnings + warnings
+        if all_warnings:
+            warning_display = dbc.Alert(
+                [html.Ul([html.Li(w, className="small") for w in all_warnings])],
+                color="warning",
+                className="mt-2",
+            )
+
+        # Build preview table
+        preview_table = dbc.Table([
+            html.Thead([
+                html.Tr([
+                    html.Th("Ticker"),
+                    html.Th("Weight"),
+                    html.Th("Value"),
+                    html.Th("Shares"),
+                ])
+            ]),
+            html.Tbody([
+                html.Tr([
+                    html.Td(h["ticker"]),
+                    html.Td(f"{h['weight']:.1%}"),
+                    html.Td(f"${h['value']:,.0f}"),
+                    html.Td(f"{h['shares']:.2f}"),
+                ])
+                for h in holdings[:10]
+            ]),
+        ], striped=True, hover=True, size="sm")
+
+        if len(holdings) > 10:
+            preview_note = html.P(
+                f"Showing 10 of {len(holdings)} holdings",
+                className="text-muted small"
+            )
+        else:
+            preview_note = ""
+
+        preview = html.Div([
+            html.H6("Preview"),
+            preview_table,
+            preview_note,
+            warning_display,
+            # Store the parsed data in a hidden div for the use button
+            dcc.Store(id="import-data-store", data={
+                "holdings": holdings,
+                "total_value": total_value,
+            }),
+        ])
+
+        return status, preview, show_btn, show_btn, no_update
+
+    @app.callback(
+        [Output("portfolio-store", "data", allow_duplicate=True),
+         Output("portfolio-display", "children", allow_duplicate=True),
+         Output("holdings-chart", "figure", allow_duplicate=True),
+         Output("import-status", "children", allow_duplicate=True),
+         Output("import-preview", "children", allow_duplicate=True),
+         Output("use-import-btn", "style", allow_duplicate=True),
+         Output("clear-import-btn", "style", allow_duplicate=True)],
+        Input("use-import-btn", "n_clicks"),
+        State("import-data-store", "data"),
+        prevent_initial_call=True,
+    )
+    def use_imported_portfolio(n_clicks, import_data):
+        """Use the imported portfolio as the current portfolio."""
+        if not n_clicks or not import_data:
+            return (no_update,) * 7
+
+        holdings = import_data.get("holdings", [])
+        total_value = import_data.get("total_value", 0)
+
+        if not holdings:
+            return (no_update,) * 7
+
+        # Create display
+        display = html.Div([
+            html.H5(f"Imported Portfolio ({len(holdings)} holdings)"),
+            html.P(f"Total Value: ${total_value:,.0f}", className="text-muted"),
+            html.Hr(),
+            html.Ul([
+                html.Li(f"{h['ticker']}: {h['weight']:.1%} - {h.get('rationale', '')}")
+                for h in holdings
+            ]),
+        ])
+
+        # Create chart
+        chart = create_holdings_bar(holdings)
+
+        # Store data
+        store_data = {
+            "holdings": holdings,
+            "notes": [f"Imported from CSV. Total value: ${total_value:,.0f}"],
+        }
+
+        # Clear import UI
+        success_msg = dbc.Alert(
+            "Portfolio imported successfully! You can now backtest or analyze it.",
+            color="success",
+        )
+
+        hide_btn = {"display": "none"}
+
+        return store_data, display, chart, success_msg, "", hide_btn, hide_btn
