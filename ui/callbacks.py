@@ -738,3 +738,253 @@ def register_callbacks(app):
         }
 
         return store_data, table, equity_chart, drawdown_chart, f"Compared {len(results)} strategies"
+
+    # =========================================================================
+    # Advanced Analytics Callbacks
+    # =========================================================================
+
+    @app.callback(
+        [Output("advanced-analytics-store", "data"),
+         Output("monte-carlo-chart", "figure"),
+         Output("monte-carlo-stats", "children"),
+         Output("rolling-returns-chart", "figure"),
+         Output("risk-metrics-display", "children"),
+         Output("calendar-heatmap", "figure"),
+         Output("dividend-summary", "children"),
+         Output("dividend-chart", "figure"),
+         Output("contribution-chart", "figure"),
+         Output("advanced-loading", "children")],
+        Input("run-advanced-btn", "n_clicks"),
+        [State("portfolio-store", "data"),
+         State("advanced-date-range", "start_date"),
+         State("advanced-date-range", "end_date"),
+         State("mc-years-slider", "value"),
+         State("mc-initial-input", "value")],
+        prevent_initial_call=True,
+    )
+    def run_advanced_analytics(n_clicks, portfolio_data, start_date, end_date,
+                               mc_years, initial_investment):
+        """Run all advanced analytics."""
+        from engines.advanced_analytics import (
+            run_monte_carlo_simulation,
+            calculate_rolling_returns,
+            calculate_advanced_risk_metrics,
+            calculate_calendar_returns,
+            analyze_dividend_yield,
+            calculate_contribution_analysis,
+        )
+        from ui.charts import (
+            create_monte_carlo_chart,
+            create_rolling_returns_chart,
+            create_calendar_heatmap,
+            create_yield_chart,
+            create_contribution_chart,
+        )
+
+        if not n_clicks or not portfolio_data:
+            return (no_update,) * 10
+
+        # Parse dates
+        if isinstance(start_date, str):
+            start_date = date.fromisoformat(start_date.split("T")[0])
+        if isinstance(end_date, str):
+            end_date = date.fromisoformat(end_date.split("T")[0])
+
+        # Build portfolio
+        holdings = [
+            PortfolioHolding(ticker=h["ticker"], weight=h["weight"])
+            for h in portfolio_data["holdings"]
+        ]
+        portfolio = Portfolio(holdings=holdings)
+
+        # Run Monte Carlo
+        mc_result = run_monte_carlo_simulation(
+            portfolio, start_date, end_date,
+            projection_years=mc_years,
+            initial_investment=initial_investment or 10000,
+        )
+        mc_chart = create_monte_carlo_chart(mc_result)
+
+        # Monte Carlo stats display
+        if "statistics" in mc_result:
+            stats = mc_result["statistics"]
+            mc_stats = dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Median Final Value", className="text-muted"),
+                            html.H4(f"${stats['median_final']:,.0f}"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("5th Percentile", className="text-muted"),
+                            html.H4(f"${stats['p5_final']:,.0f}", className="text-danger"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("95th Percentile", className="text-muted"),
+                            html.H4(f"${stats['p95_final']:,.0f}", className="text-success"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Prob. of Loss", className="text-muted"),
+                            html.H4(f"{stats['prob_loss']:.1%}"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Prob. of 2x", className="text-muted"),
+                            html.H4(f"{stats['prob_double']:.1%}"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Ann. Return", className="text-muted"),
+                            html.H4(f"{mc_result['historical_stats']['annualized_return']:.1%}"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+            ])
+        else:
+            mc_stats = html.P("Unable to calculate statistics", className="text-muted")
+
+        # Rolling Returns
+        rolling_result = calculate_rolling_returns(portfolio, start_date, end_date)
+        rolling_chart = create_rolling_returns_chart(rolling_result)
+
+        # Risk Metrics
+        risk_result = calculate_advanced_risk_metrics(portfolio, start_date, end_date)
+        if "error" not in risk_result:
+            risk_display = html.Div([
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Value at Risk (VaR)"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Daily VaR (95%): "),
+                                       f"{risk_result['var']['daily']:.2%}"]),
+                                html.P([html.Strong("Annual VaR: "),
+                                       f"{risk_result['var']['annual']:.2%}"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Expected Shortfall (CVaR)"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Daily CVaR: "),
+                                       f"{risk_result['cvar']['daily']:.2%}"]),
+                                html.P([html.Strong("Annual CVaR: "),
+                                       f"{risk_result['cvar']['annual']:.2%}"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Distribution"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Skewness: "),
+                                       f"{risk_result['skewness']:.2f}"]),
+                                html.P([html.Strong("Kurtosis: "),
+                                       f"{risk_result['kurtosis']:.2f}"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                ], className="mb-3"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Benchmark Relative"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Beta: "),
+                                       f"{risk_result['beta']:.2f}" if risk_result['beta'] else "N/A"]),
+                                html.P([html.Strong("Alpha: "),
+                                       f"{risk_result['alpha']:.2%}" if risk_result['alpha'] else "N/A"]),
+                                html.P([html.Strong("R-squared: "),
+                                       f"{risk_result['r_squared']:.2%}" if risk_result['r_squared'] else "N/A"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Tracking"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Tracking Error: "),
+                                       f"{risk_result['tracking_error']:.2%}" if risk_result['tracking_error'] else "N/A"]),
+                                html.P([html.Strong("Information Ratio: "),
+                                       f"{risk_result['information_ratio']:.2f}" if risk_result['information_ratio'] else "N/A"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader("Risk-Adjusted"),
+                            dbc.CardBody([
+                                html.P([html.Strong("Downside Dev: "),
+                                       f"{risk_result['downside_deviation']:.2%}"]),
+                                html.P([html.Strong("Calmar Ratio: "),
+                                       f"{risk_result['calmar_ratio']:.2f}"]),
+                            ]),
+                        ]),
+                    ], md=4),
+                ]),
+            ])
+        else:
+            risk_display = html.P("Unable to calculate risk metrics", className="text-muted")
+
+        # Calendar Returns
+        calendar_result = calculate_calendar_returns(portfolio, start_date, end_date)
+        calendar_chart = create_calendar_heatmap(calendar_result)
+
+        # Dividend Analysis
+        dividend_result = analyze_dividend_yield(portfolio)
+        dividend_summary = html.Div([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H4(f"{dividend_result['portfolio_yield']:.2%}",
+                           className="text-primary"),
+                    html.P("Portfolio Yield", className="text-muted mb-0"),
+                ]),
+            ], className="text-center mb-3"),
+            dbc.Card([
+                dbc.CardBody([
+                    html.H5(f"${dividend_result['annual_income_per_10k']:,.0f}"),
+                    html.P("Annual Income per $10K", className="text-muted mb-0"),
+                ]),
+            ], className="text-center mb-3"),
+            dbc.Card([
+                dbc.CardBody([
+                    html.H5(f"${dividend_result['monthly_income_per_10k']:,.0f}"),
+                    html.P("Monthly Income per $10K", className="text-muted mb-0"),
+                ]),
+            ], className="text-center"),
+        ])
+        dividend_chart = create_yield_chart(dividend_result)
+
+        # Contribution Analysis
+        contribution_result = calculate_contribution_analysis(portfolio, start_date, end_date)
+        contribution_chart = create_contribution_chart(contribution_result)
+
+        # Store data
+        store_data = {
+            "monte_carlo": mc_result.get("statistics", {}),
+            "risk_metrics": risk_result if "error" not in risk_result else {},
+            "dividend": dividend_result,
+        }
+
+        return (store_data, mc_chart, mc_stats, rolling_chart, risk_display,
+                calendar_chart, dividend_summary, dividend_chart, contribution_chart,
+                "Analysis complete")

@@ -26,6 +26,7 @@ def create_app_layout() -> dbc.Container:
             dbc.Tab(create_portfolio_tab(), label="Portfolio Builder", tab_id="tab-portfolio"),
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
             dbc.Tab(create_analytics_tab(), label="Analytics", tab_id="tab-analytics"),
+            dbc.Tab(create_advanced_analytics_tab(), label="Advanced", tab_id="tab-advanced"),
             dbc.Tab(create_diversification_tab(), label="Diversification", tab_id="tab-diversification"),
             dbc.Tab(create_comparison_tab(), label="Compare Strategies", tab_id="tab-compare"),
             dbc.Tab(create_hedges_tab(), label="Hedges", tab_id="tab-hedges"),
@@ -37,6 +38,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="backtest-store", storage_type="memory"),
         dcc.Store(id="hedge-store", storage_type="memory"),
         dcc.Store(id="comparison-store", storage_type="memory"),
+        dcc.Store(id="advanced-analytics-store", storage_type="memory"),
 
     ], fluid=True)
 
@@ -337,6 +339,136 @@ def create_analytics_tab() -> dbc.Container:
                     ]),
                 ]),
             ]),
+        ]),
+    ], fluid=True, className="py-3")
+
+
+def create_advanced_analytics_tab() -> dbc.Container:
+    """Create the Advanced Analytics tab with Monte Carlo, Risk Metrics, etc."""
+    default_end = date.today()
+    default_start = default_end - timedelta(days=365 * 5)
+
+    return dbc.Container([
+        # Controls row
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Analysis Settings"),
+                    dbc.CardBody([
+                        html.Label("Historical Period", className="fw-bold"),
+                        dcc.DatePickerRange(
+                            id="advanced-date-range",
+                            start_date=default_start,
+                            end_date=default_end,
+                            max_date_allowed=default_end,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Monte Carlo Projection Years", className="fw-bold"),
+                        dcc.Slider(
+                            id="mc-years-slider",
+                            min=5,
+                            max=30,
+                            step=5,
+                            value=10,
+                            marks={i: f"{i}Y" for i in range(5, 35, 5)},
+                            className="mb-3",
+                        ),
+
+                        html.Label("Initial Investment ($)", className="fw-bold"),
+                        dcc.Input(
+                            id="mc-initial-input",
+                            type="number",
+                            value=10000,
+                            min=1000,
+                            step=1000,
+                            className="form-control mb-3",
+                        ),
+
+                        dbc.Button(
+                            "Run Advanced Analytics",
+                            id="run-advanced-btn",
+                            color="primary",
+                            size="lg",
+                            className="w-100 mb-2",
+                        ),
+
+                        dbc.Spinner(
+                            html.Div(id="advanced-loading"),
+                            color="primary",
+                            type="border",
+                            size="sm",
+                        ),
+                    ]),
+                ]),
+            ], md=3),
+
+            # Results
+            dbc.Col([
+                dbc.Tabs([
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="monte-carlo-chart"),
+                                html.Div(id="monte-carlo-stats", className="mt-3"),
+                            ]),
+                        ]),
+                    ], label="Monte Carlo", tab_id="mc-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="rolling-returns-chart"),
+                            ]),
+                        ]),
+                    ], label="Rolling Returns", tab_id="rolling-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.Div(id="risk-metrics-display"),
+                            ]),
+                        ]),
+                    ], label="Risk Metrics", tab_id="risk-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="calendar-heatmap"),
+                            ]),
+                        ]),
+                    ], label="Calendar Returns", tab_id="calendar-tab"),
+
+                    dbc.Tab([
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Card([
+                                    dbc.CardHeader("Dividend Analysis"),
+                                    dbc.CardBody([
+                                        html.Div(id="dividend-summary"),
+                                    ]),
+                                ]),
+                            ], md=4),
+                            dbc.Col([
+                                dbc.Card([
+                                    dbc.CardBody([
+                                        dcc.Graph(id="dividend-chart"),
+                                    ]),
+                                ]),
+                            ], md=8),
+                        ]),
+                    ], label="Income", tab_id="income-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="contribution-chart"),
+                            ]),
+                        ]),
+                    ], label="Contribution", tab_id="contribution-tab"),
+
+                ], id="advanced-tabs", active_tab="mc-tab"),
+            ], md=9),
         ]),
     ], fluid=True, className="py-3")
 

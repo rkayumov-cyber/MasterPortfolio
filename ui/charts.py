@@ -412,3 +412,287 @@ def create_hedge_recommendations_table(recommendations: list[dict]) -> go.Figure
     )
 
     return fig
+
+
+def create_monte_carlo_chart(
+    simulation_data: dict,
+    title: str = "Monte Carlo Simulation",
+) -> go.Figure:
+    """Create Monte Carlo simulation fan chart."""
+    if "error" in simulation_data:
+        return go.Figure()
+
+    dates = simulation_data.get("dates", [])
+    paths = simulation_data.get("paths_sampled", {})
+
+    fig = go.Figure()
+
+    # Add percentile bands (filled areas)
+    if "p5" in paths and "p95" in paths:
+        fig.add_trace(go.Scatter(
+            x=dates + dates[::-1],
+            y=paths["p95"] + paths["p5"][::-1],
+            fill="toself",
+            fillcolor="rgba(46, 134, 171, 0.1)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="5th-95th Percentile",
+            showlegend=True,
+        ))
+
+    if "p25" in paths and "p75" in paths:
+        fig.add_trace(go.Scatter(
+            x=dates + dates[::-1],
+            y=paths["p75"] + paths["p25"][::-1],
+            fill="toself",
+            fillcolor="rgba(46, 134, 171, 0.2)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="25th-75th Percentile",
+            showlegend=True,
+        ))
+
+    # Add median line
+    if "p50" in paths:
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=paths["p50"],
+            mode="lines",
+            name="Median (50th)",
+            line=dict(color="#2E86AB", width=3),
+        ))
+
+    # Add percentile lines
+    percentile_styles = {
+        "p5": {"color": "#E74C3C", "dash": "dot", "name": "5th Percentile"},
+        "p95": {"color": "#27AE60", "dash": "dot", "name": "95th Percentile"},
+    }
+
+    for key, style in percentile_styles.items():
+        if key in paths:
+            fig.add_trace(go.Scatter(
+                x=dates,
+                y=paths[key],
+                mode="lines",
+                name=style["name"],
+                line=dict(color=style["color"], width=1.5, dash=style["dash"]),
+            ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Portfolio Value ($)",
+        yaxis_tickformat="$,.0f",
+        hovermode="x unified",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        margin=dict(l=50, r=30, t=50, b=50),
+    )
+
+    return fig
+
+
+def create_rolling_returns_chart(
+    rolling_data: dict,
+    title: str = "Rolling Returns",
+) -> go.Figure:
+    """Create rolling returns line chart."""
+    if "error" in rolling_data:
+        return go.Figure()
+
+    dates = rolling_data.get("dates", [])
+    rolling_returns = rolling_data.get("rolling_returns", {})
+
+    fig = go.Figure()
+
+    colors = ["#2E86AB", "#A23B72", "#F18F01"]
+
+    for i, (window, values) in enumerate(rolling_returns.items()):
+        # Align dates with values
+        plot_dates = dates[-len(values):] if len(dates) > len(values) else dates
+
+        fig.add_trace(go.Scatter(
+            x=plot_dates,
+            y=values,
+            mode="lines",
+            name=f"{window} Rolling",
+            line=dict(color=colors[i % len(colors)], width=2),
+        ))
+
+    # Add zero line
+    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Return",
+        yaxis_tickformat=".1%",
+        hovermode="x unified",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        margin=dict(l=50, r=30, t=50, b=50),
+    )
+
+    return fig
+
+
+def create_calendar_heatmap(
+    calendar_data: dict,
+    title: str = "Monthly Returns Heatmap",
+) -> go.Figure:
+    """Create calendar returns heatmap."""
+    if "error" in calendar_data:
+        return go.Figure()
+
+    heatmap_data = calendar_data.get("heatmap_data", [])
+    months = calendar_data.get("months", [])
+
+    if not heatmap_data:
+        return go.Figure()
+
+    # Build z matrix
+    years = [d["year"] for d in heatmap_data]
+    z = []
+    text = []
+
+    for row in heatmap_data:
+        row_values = []
+        row_text = []
+        for month in months:
+            val = row.get(month)
+            if val is not None:
+                row_values.append(val)
+                row_text.append(f"{val:.1%}")
+            else:
+                row_values.append(None)
+                row_text.append("")
+        z.append(row_values)
+        text.append(row_text)
+
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=months,
+        y=years,
+        colorscale=[
+            [0, "#E74C3C"],      # Red for negative
+            [0.5, "#FFFFFF"],    # White for zero
+            [1, "#27AE60"],      # Green for positive
+        ],
+        zmid=0,
+        text=text,
+        texttemplate="%{text}",
+        textfont={"size": 10},
+        hovertemplate="<b>%{y} %{x}</b><br>Return: %{z:.2%}<extra></extra>",
+        colorbar=dict(
+            title="Return",
+            tickformat=".0%",
+        ),
+    ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Month",
+        yaxis_title="Year",
+        yaxis=dict(autorange="reversed"),
+        margin=dict(l=50, r=80, t=50, b=50),
+        height=max(300, len(years) * 35),
+    )
+
+    return fig
+
+
+def create_contribution_chart(
+    contribution_data: dict,
+    title: str = "Return Contribution by Holding",
+) -> go.Figure:
+    """Create contribution waterfall/bar chart."""
+    if "error" in contribution_data:
+        return go.Figure()
+
+    contributions = contribution_data.get("contributions", [])
+
+    if not contributions:
+        return go.Figure()
+
+    tickers = [c["ticker"] for c in contributions]
+    values = [c["contribution"] for c in contributions]
+    colors = ["#27AE60" if v >= 0 else "#E74C3C" for v in values]
+
+    fig = go.Figure(data=[go.Bar(
+        x=tickers,
+        y=values,
+        marker_color=colors,
+        text=[f"{v:.1%}" for v in values],
+        textposition="outside",
+    )])
+
+    fig.add_hline(y=0, line_dash="solid", line_color="black", opacity=0.3)
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Holding",
+        yaxis_title="Contribution to Return",
+        yaxis_tickformat=".1%",
+        margin=dict(l=50, r=30, t=50, b=50),
+        height=400,
+    )
+
+    return fig
+
+
+def create_yield_chart(
+    dividend_data: dict,
+    title: str = "Dividend Yield Breakdown",
+) -> go.Figure:
+    """Create dividend yield breakdown chart."""
+    if "error" in dividend_data:
+        return go.Figure()
+
+    holdings = dividend_data.get("holdings_yield", [])
+
+    if not holdings:
+        return go.Figure()
+
+    # Filter to non-zero yields
+    holdings = [h for h in holdings if h["yield"] > 0]
+
+    if not holdings:
+        return go.Figure()
+
+    tickers = [h["ticker"] for h in holdings]
+    yields = [h["yield"] for h in holdings]
+    contributions = [h["contribution"] for h in holdings]
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("Individual Yields", "Contribution to Portfolio Yield"),
+        specs=[[{"type": "bar"}, {"type": "bar"}]],
+    )
+
+    # Individual yields
+    fig.add_trace(go.Bar(
+        x=tickers,
+        y=yields,
+        marker_color="#2E86AB",
+        text=[f"{y:.1%}" for y in yields],
+        textposition="outside",
+        name="Yield",
+    ), row=1, col=1)
+
+    # Contributions
+    fig.add_trace(go.Bar(
+        x=tickers,
+        y=contributions,
+        marker_color="#A23B72",
+        text=[f"{c:.2%}" for c in contributions],
+        textposition="outside",
+        name="Contribution",
+    ), row=1, col=2)
+
+    fig.update_layout(
+        title=title,
+        showlegend=False,
+        margin=dict(l=50, r=30, t=70, b=50),
+        height=400,
+    )
+
+    fig.update_yaxes(tickformat=".1%", row=1, col=1)
+    fig.update_yaxes(tickformat=".2%", row=1, col=2)
+
+    return fig
