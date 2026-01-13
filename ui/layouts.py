@@ -54,6 +54,12 @@ def create_portfolio_tab() -> dbc.Container:
                             id="strategy-dropdown",
                             options=[
                                 {"label": "Strategic (Baseline + Tilts)", "value": "Strategic"},
+                                {"label": "60/40 (Classic Balanced)", "value": "60/40"},
+                                {"label": "Growth (Equity Heavy)", "value": "Growth"},
+                                {"label": "Conservative (Bond Heavy)", "value": "Conservative"},
+                                {"label": "Aggressive (100% Equity)", "value": "Aggressive"},
+                                {"label": "Income (Dividend Focus)", "value": "Income"},
+                                {"label": "All Weather (Balanced)", "value": "All Weather"},
                                 {"label": "Risk Parity", "value": "Risk Parity"},
                                 {"label": "Equal Weight", "value": "Equal Weight"},
                             ],

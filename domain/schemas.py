@@ -54,6 +54,12 @@ class AllocationStrategy(str, Enum):
     STRATEGIC = "Strategic"  # Traditional baseline + tilts
     RISK_PARITY = "Risk Parity"  # Equal risk contribution
     EQUAL_WEIGHT = "Equal Weight"  # Simple equal weighting
+    CLASSIC_60_40 = "60/40"  # Classic 60% stocks, 40% bonds
+    GROWTH = "Growth"  # Higher equity, growth-focused
+    CONSERVATIVE = "Conservative"  # Lower risk, bond-heavy
+    AGGRESSIVE = "Aggressive"  # Maximum equity exposure
+    INCOME = "Income"  # Dividend and yield focused
+    ALL_WEATHER = "All Weather"  # Balanced across asset classes
 
 
 class ETF(BaseModel):

@@ -57,9 +57,12 @@ def register_callbacks(app):
     )
     def toggle_strategy_options(strategy):
         """Show/hide options based on selected strategy."""
+        # Predefined strategies that don't need extra options
+        predefined = ["60/40", "Growth", "Conservative", "Aggressive", "Income", "All Weather", "Equal Weight"]
+
         if strategy == "Risk Parity":
             return {"display": "block"}, {"display": "none"}, {"display": "none"}
-        elif strategy == "Equal Weight":
+        elif strategy in predefined:
             return {"display": "none"}, {"display": "none"}, {"display": "none"}
         else:  # Strategic
             return {"display": "none"}, {"display": "block"}, {"display": "block"}
@@ -91,23 +94,32 @@ def register_callbacks(app):
             excluded_tickers=excluded or [],
         )
 
+        # Map strategy dropdown value to enum
+        strategy_map = {
+            "Strategic": AllocationStrategy.STRATEGIC,
+            "Risk Parity": AllocationStrategy.RISK_PARITY,
+            "Equal Weight": AllocationStrategy.EQUAL_WEIGHT,
+            "60/40": AllocationStrategy.CLASSIC_60_40,
+            "Growth": AllocationStrategy.GROWTH,
+            "Conservative": AllocationStrategy.CONSERVATIVE,
+            "Aggressive": AllocationStrategy.AGGRESSIVE,
+            "Income": AllocationStrategy.INCOME,
+            "All Weather": AllocationStrategy.ALL_WEATHER,
+        }
+        strategy_enum = strategy_map.get(strategy, AllocationStrategy.STRATEGIC)
+
         # Build request based on strategy
         if strategy == "Risk Parity":
             request = PortfolioRequest(
-                strategy=AllocationStrategy.RISK_PARITY,
+                strategy=strategy_enum,
                 constraints=constraints,
                 risk_parity_config=RiskParityConfig(
                     universe=rp_universe or "balanced",
                     method=rp_method or "inverse_vol",
                 ),
             )
-        elif strategy == "Equal Weight":
-            request = PortfolioRequest(
-                strategy=AllocationStrategy.EQUAL_WEIGHT,
-                constraints=constraints,
-            )
-        else:
-            # Strategic
+        elif strategy == "Strategic":
+            # Strategic with tilts
             tilts = Tilts(
                 regions={
                     "US": us_tilt or 0,
@@ -115,10 +127,16 @@ def register_callbacks(app):
                 }
             )
             request = PortfolioRequest(
-                strategy=AllocationStrategy.STRATEGIC,
+                strategy=strategy_enum,
                 risk_profile=RiskProfile(risk_profile),
                 constraints=constraints,
                 tilts=tilts,
+            )
+        else:
+            # All other predefined strategies
+            request = PortfolioRequest(
+                strategy=strategy_enum,
+                constraints=constraints,
             )
 
         # Build portfolio

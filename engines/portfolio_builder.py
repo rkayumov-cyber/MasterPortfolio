@@ -30,13 +30,26 @@ def build_portfolio(request: PortfolioRequest) -> Portfolio:
     - STRATEGIC: Traditional baseline allocation with tilts
     - RISK_PARITY: Equal risk contribution weighting
     - EQUAL_WEIGHT: Simple equal weighting
+    - CLASSIC_60_40: Classic 60% stocks, 40% bonds
+    - GROWTH: Higher equity, growth-focused
+    - CONSERVATIVE: Lower risk, bond-heavy
+    - AGGRESSIVE: Maximum equity exposure
+    - INCOME: Dividend and yield focused
+    - ALL_WEATHER: Balanced across asset classes
     """
-    if request.strategy == AllocationStrategy.RISK_PARITY:
-        return _build_risk_parity_portfolio(request)
-    elif request.strategy == AllocationStrategy.EQUAL_WEIGHT:
-        return _build_equal_weight_portfolio(request)
-    else:
-        return _build_strategic_portfolio(request)
+    strategy_builders = {
+        AllocationStrategy.RISK_PARITY: _build_risk_parity_portfolio,
+        AllocationStrategy.EQUAL_WEIGHT: _build_equal_weight_portfolio,
+        AllocationStrategy.CLASSIC_60_40: _build_60_40_portfolio,
+        AllocationStrategy.GROWTH: _build_growth_portfolio,
+        AllocationStrategy.CONSERVATIVE: _build_conservative_portfolio,
+        AllocationStrategy.AGGRESSIVE: _build_aggressive_portfolio,
+        AllocationStrategy.INCOME: _build_income_portfolio,
+        AllocationStrategy.ALL_WEATHER: _build_all_weather_portfolio,
+    }
+
+    builder = strategy_builders.get(request.strategy, _build_strategic_portfolio)
+    return builder(request)
 
 
 def _build_strategic_portfolio(request: PortfolioRequest) -> Portfolio:
@@ -118,6 +131,314 @@ def _build_equal_weight_portfolio(request: PortfolioRequest) -> Portfolio:
 
     notes = [
         "Equal weight allocation strategy",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_60_40_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build classic 60/40 portfolio (60% stocks, 40% bonds)."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VTI",
+            weight=0.40,
+            rationale="US Total Stock Market - core equity",
+        ),
+        PortfolioHolding(
+            ticker="VEA",
+            weight=0.12,
+            rationale="Developed International - equity diversification",
+        ),
+        PortfolioHolding(
+            ticker="VWO",
+            weight=0.08,
+            rationale="Emerging Markets - equity diversification",
+        ),
+        PortfolioHolding(
+            ticker="BND",
+            weight=0.28,
+            rationale="US Total Bond Market - core fixed income",
+        ),
+        PortfolioHolding(
+            ticker="BNDX",
+            weight=0.12,
+            rationale="International Bonds - fixed income diversification",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "Classic 60/40 portfolio",
+        "60% global equities, 40% global bonds",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_growth_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build growth-focused portfolio with higher equity allocation."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VTI",
+            weight=0.30,
+            rationale="US Total Stock Market - core equity",
+        ),
+        PortfolioHolding(
+            ticker="QQQ",
+            weight=0.20,
+            rationale="NASDAQ-100 - growth/tech tilt",
+        ),
+        PortfolioHolding(
+            ticker="VGT",
+            weight=0.10,
+            rationale="Technology sector - growth focus",
+        ),
+        PortfolioHolding(
+            ticker="VEA",
+            weight=0.15,
+            rationale="Developed International equities",
+        ),
+        PortfolioHolding(
+            ticker="VWO",
+            weight=0.10,
+            rationale="Emerging Markets - higher growth potential",
+        ),
+        PortfolioHolding(
+            ticker="BND",
+            weight=0.10,
+            rationale="Bonds - modest allocation for stability",
+        ),
+        PortfolioHolding(
+            ticker="VNQ",
+            weight=0.05,
+            rationale="Real Estate - diversification",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "Growth portfolio",
+        "85% equities with tech/growth tilt, 10% bonds, 5% real estate",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_conservative_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build conservative portfolio with higher bond allocation."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VTI",
+            weight=0.20,
+            rationale="US Total Stock Market - modest equity exposure",
+        ),
+        PortfolioHolding(
+            ticker="VEA",
+            weight=0.10,
+            rationale="Developed International equities",
+        ),
+        PortfolioHolding(
+            ticker="BND",
+            weight=0.30,
+            rationale="US Total Bond Market - core stability",
+        ),
+        PortfolioHolding(
+            ticker="VCSH",
+            weight=0.15,
+            rationale="Short-term corporate bonds - lower duration risk",
+        ),
+        PortfolioHolding(
+            ticker="VTIP",
+            weight=0.10,
+            rationale="TIPS - inflation protection",
+        ),
+        PortfolioHolding(
+            ticker="SHY",
+            weight=0.10,
+            rationale="Short-term treasuries - capital preservation",
+        ),
+        PortfolioHolding(
+            ticker="GLD",
+            weight=0.05,
+            rationale="Gold - crisis hedge",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "Conservative portfolio",
+        "30% equities, 65% fixed income, 5% gold",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_aggressive_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build aggressive portfolio with maximum equity exposure."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VTI",
+            weight=0.25,
+            rationale="US Total Stock Market - core equity",
+        ),
+        PortfolioHolding(
+            ticker="QQQ",
+            weight=0.20,
+            rationale="NASDAQ-100 - growth/tech exposure",
+        ),
+        PortfolioHolding(
+            ticker="IWM",
+            weight=0.10,
+            rationale="Small-cap - higher risk/return",
+        ),
+        PortfolioHolding(
+            ticker="VEA",
+            weight=0.15,
+            rationale="Developed International equities",
+        ),
+        PortfolioHolding(
+            ticker="VWO",
+            weight=0.15,
+            rationale="Emerging Markets - higher growth potential",
+        ),
+        PortfolioHolding(
+            ticker="VNQ",
+            weight=0.10,
+            rationale="Real Estate - additional equity exposure",
+        ),
+        PortfolioHolding(
+            ticker="XLE",
+            weight=0.05,
+            rationale="Energy sector - cyclical exposure",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "Aggressive portfolio",
+        "100% equities with small-cap and emerging market tilts",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_income_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build income-focused portfolio with dividend and yield emphasis."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VYM",
+            weight=0.20,
+            rationale="High Dividend Yield - dividend income",
+        ),
+        PortfolioHolding(
+            ticker="SCHD",
+            weight=0.15,
+            rationale="Dividend Appreciation - quality dividends",
+        ),
+        PortfolioHolding(
+            ticker="VNQ",
+            weight=0.10,
+            rationale="Real Estate - REIT income",
+        ),
+        PortfolioHolding(
+            ticker="BND",
+            weight=0.20,
+            rationale="Total Bond Market - interest income",
+        ),
+        PortfolioHolding(
+            ticker="LQD",
+            weight=0.10,
+            rationale="Investment Grade Corporate - higher yield bonds",
+        ),
+        PortfolioHolding(
+            ticker="HYG",
+            weight=0.10,
+            rationale="High Yield Bonds - income premium",
+        ),
+        PortfolioHolding(
+            ticker="EMB",
+            weight=0.10,
+            rationale="Emerging Market Bonds - yield diversification",
+        ),
+        PortfolioHolding(
+            ticker="VCSH",
+            weight=0.05,
+            rationale="Short-term corporate - stable income",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "Income portfolio",
+        "45% dividend equities, 55% fixed income with yield tilt",
+        f"Portfolio contains {len(holdings)} ETFs",
+    ]
+
+    return Portfolio(holdings=holdings, notes=notes)
+
+
+def _build_all_weather_portfolio(request: PortfolioRequest) -> Portfolio:
+    """Build all-weather portfolio balanced across economic environments."""
+    holdings = [
+        PortfolioHolding(
+            ticker="VTI",
+            weight=0.30,
+            rationale="US Stocks - growth in expansion",
+        ),
+        PortfolioHolding(
+            ticker="TLT",
+            weight=0.20,
+            rationale="Long-term Treasuries - deflation/recession protection",
+        ),
+        PortfolioHolding(
+            ticker="IEF",
+            weight=0.15,
+            rationale="Intermediate Treasuries - balanced duration",
+        ),
+        PortfolioHolding(
+            ticker="GLD",
+            weight=0.10,
+            rationale="Gold - inflation hedge and crisis protection",
+        ),
+        PortfolioHolding(
+            ticker="DBC",
+            weight=0.05,
+            rationale="Commodities - inflation hedge",
+        ),
+        PortfolioHolding(
+            ticker="VTIP",
+            weight=0.10,
+            rationale="TIPS - inflation protection",
+        ),
+        PortfolioHolding(
+            ticker="VEA",
+            weight=0.10,
+            rationale="International Developed - geographic diversification",
+        ),
+    ]
+
+    holdings = _enforce_constraints(holdings, request.constraints)
+    holdings = _normalize_weights(holdings, request.constraints.max_weight_per_etf)
+
+    notes = [
+        "All Weather portfolio",
+        "Designed to perform across economic environments",
+        "30% stocks, 45% bonds/TIPS, 15% commodities/gold, 10% international",
         f"Portfolio contains {len(holdings)} ETFs",
     ]
 
