@@ -2,11 +2,55 @@ version: '3.8'
 
 services:
   etf-portfolio-tool:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etf-portfolio-tool
     ports:
-      - "8050:8050"
+      - "${PORT:-8050}:8050"
     volumes:
-      - ./cache:/app/cache
+      - cache_data:/app/cache
+      - portfolio_data:/app/saved_portfolios
     environment:
       - PYTHONUNBUFFERED=1
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
+    env_file:
+      - .env
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8050/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Development service with hot reload
+  etf-portfolio-tool-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etf-portfolio-tool-dev
+    ports:
+      - "${PORT:-8050}:8050"
+    volumes:
+      - .:/app
+      - cache_data:/app/cache
+      - portfolio_data:/app/saved_portfolios
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DASH_DEBUG=true
+    command: ["python", "app.py"]
+    profiles:
+      - dev
+
+volumes:
+  cache_data:
+    driver: local
+  portfolio_data:
+    driver: local
