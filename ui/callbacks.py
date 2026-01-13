@@ -1409,3 +1409,227 @@ def register_callbacks(app):
         }
 
         return summary, trades_table, expense_display, store_data
+
+    # =========================================================================
+    # ETF Screener Callbacks
+    # =========================================================================
+
+    @app.callback(
+        [Output("screener-results", "children"),
+         Output("screener-count", "children"),
+         Output("screener-store", "data")],
+        [Input("apply-screener-btn", "n_clicks"),
+         Input("reset-screener-btn", "n_clicks")],
+        [State("screener-search", "value"),
+         State("screener-asset-class", "value"),
+         State("screener-region", "value"),
+         State("screener-sector", "value"),
+         State("screener-max-expense", "value"),
+         State("screener-tags", "value"),
+         State("screener-exclude-inverse", "value")],
+        prevent_initial_call=True,
+    )
+    def apply_screener_filters(apply_clicks, reset_clicks, search, asset_classes,
+                               regions, sectors, max_expense, tags, exclude_inverse):
+        """Apply screener filters and display results."""
+        from dash import ctx
+        from engines.screener import screen_etfs, ScreenerFilters
+
+        triggered = ctx.triggered_id
+
+        # If reset was clicked, use empty filters
+        if triggered == "reset-screener-btn":
+            filters = ScreenerFilters(exclude_inverse=True)
+        else:
+            # Build filters from inputs
+            filters = ScreenerFilters(
+                search_query=search if search else None,
+                asset_classes=asset_classes if asset_classes else None,
+                regions=regions if regions else None,
+                sectors=sectors if sectors else None,
+                max_expense_ratio=max_expense if max_expense and max_expense < 1.0 else None,
+                tags=tags if tags else None,
+                exclude_inverse="exclude" in (exclude_inverse or []),
+            )
+
+        # Run screener
+        result = screen_etfs(filters)
+
+        # Build results table
+        if result.etfs:
+            table = dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Ticker"),
+                        html.Th("Name"),
+                        html.Th("Asset Class"),
+                        html.Th("Region"),
+                        html.Th("Expense"),
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td([
+                            dbc.Button(
+                                etf.ticker,
+                                id={"type": "etf-ticker-btn", "ticker": etf.ticker},
+                                color="link",
+                                size="sm",
+                                className="p-0",
+                            ),
+                        ]),
+                        html.Td(etf.name[:40] + "..." if len(etf.name) > 40 else etf.name,
+                               className="small"),
+                        html.Td(dbc.Badge(etf.asset_class.value, color="primary"),
+                               className="small"),
+                        html.Td(etf.region.value, className="small"),
+                        html.Td(f"{etf.expense_ratio:.2f}%" if etf.expense_ratio else "-",
+                               className="small"),
+                    ])
+                    for etf in result.etfs[:50]  # Limit to 50 results
+                ]),
+            ], striped=True, hover=True, size="sm", responsive=True)
+
+            if result.total_count > 50:
+                results_display = html.Div([
+                    table,
+                    html.P(f"Showing 50 of {result.total_count} results",
+                          className="text-muted small mt-2"),
+                ])
+            else:
+                results_display = table
+        else:
+            results_display = html.P("No ETFs match the filters", className="text-muted")
+
+        # Store the filter results
+        store_data = {
+            "tickers": [etf.ticker for etf in result.etfs],
+            "count": result.total_count,
+            "filters": result.filters_applied,
+        }
+
+        return results_display, str(result.total_count), store_data
+
+    @app.callback(
+        Output("etf-details-display", "children"),
+        Input({"type": "etf-ticker-btn", "ticker": ALL}, "n_clicks"),
+        State({"type": "etf-ticker-btn", "ticker": ALL}, "id"),
+        prevent_initial_call=True,
+    )
+    def show_etf_details(clicks, ids):
+        """Display details for selected ETF."""
+        from dash import ctx
+        from engines.screener import get_etf_details, find_similar_etfs, get_low_cost_alternatives
+
+        # Check which button was clicked
+        if not ctx.triggered or not any(clicks):
+            return html.P("Click on an ETF ticker to see details", className="text-muted")
+
+        # Find the triggered button
+        triggered_id = ctx.triggered_id
+        if not triggered_id:
+            return no_update
+
+        ticker = triggered_id.get("ticker")
+        if not ticker:
+            return no_update
+
+        # Get ETF details
+        details = get_etf_details(ticker)
+        if not details:
+            return html.P(f"Details not found for {ticker}", className="text-danger")
+
+        # Get similar ETFs
+        similar = find_similar_etfs(ticker, limit=3)
+
+        # Get low-cost alternatives
+        alternatives = get_low_cost_alternatives(ticker)[:3]
+
+        # Build details display
+        return html.Div([
+            dbc.Row([
+                dbc.Col([
+                    html.H4([
+                        details["ticker"],
+                        dbc.Badge(details["asset_class"], color="primary", className="ms-2"),
+                    ]),
+                    html.P(details["name"], className="text-muted"),
+                ], md=8),
+                dbc.Col([
+                    html.H5(f"{details['expense_ratio']:.2f}%" if details['expense_ratio'] else "N/A",
+                           className="text-end"),
+                    html.P("Expense Ratio", className="text-muted text-end small"),
+                ], md=4),
+            ]),
+
+            html.Hr(),
+
+            dbc.Row([
+                dbc.Col([
+                    html.Strong("Region: "),
+                    details["region"],
+                ], md=4),
+                dbc.Col([
+                    html.Strong("Sector: "),
+                    details["sector"],
+                ], md=4),
+                dbc.Col([
+                    html.Strong("Inception: "),
+                    str(details.get("inception_year") or "N/A"),
+                ], md=4),
+            ], className="mb-2"),
+
+            dbc.Row([
+                dbc.Col([
+                    html.Strong("AUM: "),
+                    f"${details.get('aum_billions') or 0}B",
+                ], md=4),
+                dbc.Col([
+                    html.Strong("Avg Volume: "),
+                    f"{details.get('avg_volume_millions') or 0}M",
+                ], md=4),
+                dbc.Col([
+                    html.Strong("Yield: "),
+                    f"{details.get('dividend_yield') or 0:.1f}%",
+                ], md=4),
+            ], className="mb-2"),
+
+            # Tags
+            html.Div([
+                dbc.Badge(tag, color="secondary", className="me-1")
+                for tag in details.get("tags", [])
+            ], className="mb-3"),
+
+            # Similar ETFs
+            html.Hr(),
+            html.H6("Similar ETFs"),
+            html.Div([
+                dbc.Badge(
+                    f"{etf.ticker} ({etf.expense_ratio:.2f}%)" if etf.expense_ratio else etf.ticker,
+                    color="info",
+                    className="me-1",
+                )
+                for etf in similar
+            ]) if similar else html.P("No similar ETFs found", className="text-muted small"),
+
+            # Low-cost alternatives
+            html.Hr() if alternatives else "",
+            html.H6("Lower-Cost Alternatives") if alternatives else "",
+            dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Ticker"),
+                        html.Th("Expense"),
+                        html.Th("Savings"),
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(alt["ticker"]),
+                        html.Td(f"{alt['expense_ratio']:.2f}%"),
+                        html.Td(f"{alt['savings_bps']:.2f} bps", className="text-success"),
+                    ])
+                    for alt in alternatives
+                ]),
+            ], size="sm", striped=True) if alternatives else "",
+        ])

@@ -24,6 +24,7 @@ def create_app_layout() -> dbc.Container:
         # Main tabs
         dbc.Tabs([
             dbc.Tab(create_portfolio_tab(), label="Portfolio Builder", tab_id="tab-portfolio"),
+            dbc.Tab(create_screener_tab(), label="ETF Screener", tab_id="tab-screener"),
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
             dbc.Tab(create_rebalancing_tab(), label="Rebalance", tab_id="tab-rebalance"),
             dbc.Tab(create_analytics_tab(), label="Analytics", tab_id="tab-analytics"),
@@ -41,6 +42,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="comparison-store", storage_type="memory"),
         dcc.Store(id="advanced-analytics-store", storage_type="memory"),
         dcc.Store(id="rebalance-store", storage_type="memory"),
+        dcc.Store(id="screener-store", storage_type="memory"),
 
     ], fluid=True)
 
@@ -270,6 +272,180 @@ def create_portfolio_tab() -> dbc.Container:
                     ], id="save-load-collapse", is_open=False),
                 ]),
             ], md=8),
+        ]),
+    ], fluid=True, className="py-3")
+
+
+def create_screener_tab() -> dbc.Container:
+    """Create the ETF Screener tab."""
+    from engines.screener import get_all_filter_options, get_screener_summary
+
+    filter_options = get_all_filter_options()
+    summary = get_screener_summary()
+
+    return dbc.Container([
+        # Summary row
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['total_etfs']}", className="text-primary mb-0"),
+                        html.Small("Total ETFs"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['expense_stats']['min']:.2f}%", className="text-success mb-0"),
+                        html.Small("Min Expense"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['expense_stats']['average']:.2f}%", className="mb-0"),
+                        html.Small("Avg Expense"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['expense_stats']['max']:.2f}%", className="text-danger mb-0"),
+                        html.Small("Max Expense"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['by_asset_class'].get('Equity', 0)}", className="mb-0"),
+                        html.Small("Equity ETFs"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4(f"{summary['by_asset_class'].get('Fixed Income', 0)}", className="mb-0"),
+                        html.Small("Bond ETFs"),
+                    ], className="text-center py-2"),
+                ]),
+            ], md=2),
+        ], className="mb-3"),
+
+        dbc.Row([
+            # Filters
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Filters"),
+                    dbc.CardBody([
+                        html.Label("Search", className="fw-bold"),
+                        dbc.Input(
+                            id="screener-search",
+                            type="text",
+                            placeholder="Search ticker or name...",
+                            className="mb-3",
+                        ),
+
+                        html.Label("Asset Class", className="fw-bold"),
+                        dcc.Dropdown(
+                            id="screener-asset-class",
+                            options=[{"label": ac, "value": ac}
+                                    for ac in filter_options["asset_classes"]],
+                            multi=True,
+                            placeholder="All asset classes",
+                            className="mb-3",
+                        ),
+
+                        html.Label("Region", className="fw-bold"),
+                        dcc.Dropdown(
+                            id="screener-region",
+                            options=[{"label": r, "value": r}
+                                    for r in filter_options["regions"]],
+                            multi=True,
+                            placeholder="All regions",
+                            className="mb-3",
+                        ),
+
+                        html.Label("Sector", className="fw-bold"),
+                        dcc.Dropdown(
+                            id="screener-sector",
+                            options=[{"label": s, "value": s}
+                                    for s in filter_options["sectors"]],
+                            multi=True,
+                            placeholder="All sectors",
+                            className="mb-3",
+                        ),
+
+                        html.Label("Max Expense Ratio (%)", className="fw-bold"),
+                        dcc.Slider(
+                            id="screener-max-expense",
+                            min=0,
+                            max=1.0,
+                            step=0.05,
+                            value=1.0,
+                            marks={0: "0%", 0.25: "0.25%", 0.5: "0.5%", 0.75: "0.75%", 1.0: "1%+"},
+                            className="mb-3",
+                        ),
+
+                        html.Label("Tags", className="fw-bold"),
+                        dcc.Dropdown(
+                            id="screener-tags",
+                            options=[{"label": t, "value": t}
+                                    for t in filter_options["tags"]],
+                            multi=True,
+                            placeholder="Any tags",
+                            className="mb-3",
+                        ),
+
+                        dbc.Checklist(
+                            id="screener-exclude-inverse",
+                            options=[{"label": " Exclude Inverse/Leveraged", "value": "exclude"}],
+                            value=["exclude"],
+                            className="mb-3",
+                        ),
+
+                        dbc.Button(
+                            "Apply Filters",
+                            id="apply-screener-btn",
+                            color="primary",
+                            className="w-100 mb-2",
+                        ),
+
+                        dbc.Button(
+                            "Reset Filters",
+                            id="reset-screener-btn",
+                            color="secondary",
+                            outline=True,
+                            className="w-100",
+                        ),
+                    ]),
+                ]),
+            ], md=3),
+
+            # Results
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("Results"),
+                        html.Span(id="screener-count", className="badge bg-primary ms-2"),
+                    ]),
+                    dbc.CardBody([
+                        html.Div(id="screener-results"),
+                    ]),
+                ], className="mb-3"),
+
+                # ETF Details
+                dbc.Card([
+                    dbc.CardHeader("ETF Details"),
+                    dbc.CardBody([
+                        html.Div(id="etf-details-display"),
+                    ]),
+                ]),
+            ], md=9),
         ]),
     ], fluid=True, className="py-3")
 
