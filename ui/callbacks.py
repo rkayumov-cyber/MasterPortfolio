@@ -34,17 +34,40 @@ from engines.hedging import get_hedge_recommendations, apply_hedge_to_portfolio
 from engines.portfolio_builder import build_portfolio
 from engines.stress import get_stress_test_summary
 from ui.charts import (
+    create_allocation_comparison_chart,
     create_allocation_pie,
     create_correlation_heatmap,
     create_drawdown_chart,
     create_efficient_frontier_chart,
     create_equity_curve_chart,
+    create_fear_greed_gauge,
     create_holdings_bar,
     create_optimal_weights_chart,
     create_optimizer_comparison_chart,
+    create_regime_gauge,
+    create_sentiment_bars,
     create_stress_test_bars,
 )
 from ui.layouts import create_metrics_row
+
+# Market Regime imports
+from engines.regime_detector import detect_regime, get_regime_summary
+from engines.regime_tilts import (
+    generate_regime_recommendation,
+    get_recommendation_summary,
+    create_default_portfolio,
+    apply_regime_tilts,
+)
+from services.sentiment_client import (
+    fetch_fear_greed_index,
+    fetch_market_analyst_consensus,
+    get_aggregate_sentiment,
+)
+from services.pdf_processor import (
+    process_research_pdf,
+    is_pdf_support_available,
+    get_sentiment_score,
+)
 
 
 def register_callbacks(app):
@@ -2523,3 +2546,512 @@ def register_callbacks(app):
         filename = f"etf_{data_type}_{date.today().isoformat()}.csv"
 
         return dcc.send_data_frame(df.to_csv, filename, index=False)
+
+    # =========================================================================
+    # Market Regime Callbacks
+    # =========================================================================
+
+    @app.callback(
+        [
+            Output("regime-gauge", "figure"),
+            Output("regime-summary", "children"),
+            Output("regime-indicators-display", "children"),
+            Output("fear-greed-gauge", "figure"),
+            Output("regime-state-store", "data"),
+            Output("regime-badge", "children"),
+            Output("regime-badge", "color"),
+        ],
+        [
+            Input("refresh-regime-btn", "n_clicks"),
+            Input("main-tabs", "active_tab"),
+        ],
+        prevent_initial_call=True,
+    )
+    def update_regime_indicators(n_clicks, active_tab):
+        """Update market regime indicators when tab is active or refresh clicked."""
+        import plotly.graph_objects as go
+
+        # Only update when on the regime tab
+        if active_tab != "tab-regime":
+            return [no_update] * 7
+
+        # Detect market regime
+        regime_state = detect_regime()
+
+        if regime_state is None:
+            empty_fig = go.Figure()
+            return (
+                empty_fig,
+                html.P("Unable to fetch market data", className="text-danger"),
+                html.P("Error connecting to data source", className="text-muted"),
+                empty_fig,
+                None,
+                "Error",
+                "danger",
+            )
+
+        # Get regime summary
+        summary = get_regime_summary(regime_state)
+
+        # Create regime gauge
+        regime_value = regime_state.score / 3  # Normalize to -1 to +1
+        regime_gauge = create_regime_gauge(
+            regime_value=regime_value,
+            confidence=regime_state.confidence,
+            regime_label=regime_state.regime.value,
+        )
+
+        # Create regime summary
+        regime_summary = html.Div([
+            html.P([
+                html.Strong("Score: "),
+                html.Span(
+                    summary["score"],
+                    className="text-success" if regime_state.score > 0 else "text-danger" if regime_state.score < 0 else "text-warning",
+                ),
+            ], className="mb-1"),
+        ])
+
+        # Create indicators display
+        indicators = regime_state.indicators
+        indicators_display = html.Div([
+            dbc.Table([
+                html.Tbody([
+                    html.Tr([
+                        html.Td("VIX Level"),
+                        html.Td(f"{indicators.vix_level:.1f}", className="text-end"),
+                    ]),
+                    html.Tr([
+                        html.Td("VIX Percentile"),
+                        html.Td(f"{indicators.vix_percentile:.0f}th", className="text-end"),
+                    ]),
+                    html.Tr([
+                        html.Td("Volatility Regime"),
+                        html.Td(indicators.volatility_regime.value, className="text-end"),
+                    ]),
+                    html.Tr([
+                        html.Td("SPY Price"),
+                        html.Td(f"${indicators.spy_price:,.2f}", className="text-end"),
+                    ]),
+                    html.Tr([
+                        html.Td("SPY vs 200 SMA"),
+                        html.Td(
+                            f"{indicators.spy_vs_200sma:+.1%}",
+                            className="text-end " + ("text-success" if indicators.spy_vs_200sma > 0 else "text-danger"),
+                        ),
+                    ]),
+                    html.Tr([
+                        html.Td("SPY vs 50 SMA"),
+                        html.Td(
+                            f"{indicators.spy_vs_50sma:+.1%}",
+                            className="text-end " + ("text-success" if indicators.spy_vs_50sma > 0 else "text-danger"),
+                        ),
+                    ]),
+                ]),
+            ], size="sm", bordered=True, className="mb-3"),
+
+            # Signals
+            html.H6("Signals", className="mt-2"),
+            html.Ul([
+                html.Li(signal, className="small")
+                for signal in regime_state.signals[:4]
+            ], className="small"),
+        ])
+
+        # Fetch Fear & Greed
+        fg_data = fetch_fear_greed_index()
+        if fg_data and fg_data.raw_value is not None:
+            fg_gauge = create_fear_greed_gauge(
+                score=fg_data.raw_value,
+                label=fg_data.label,
+            )
+        else:
+            fg_gauge = create_fear_greed_gauge(score=50, label="Unavailable")
+
+        # Determine badge color
+        if regime_state.regime.value == "Bull / Risk-On":
+            badge_color = "success"
+        elif regime_state.regime.value == "Bear / Risk-Off":
+            badge_color = "danger"
+        else:
+            badge_color = "warning"
+
+        # Store regime state
+        store_data = {
+            "regime": regime_state.regime.value,
+            "confidence": regime_state.confidence,
+            "score": regime_state.score,
+            "indicators": {
+                "vix_level": indicators.vix_level,
+                "vix_percentile": indicators.vix_percentile,
+                "spy_price": indicators.spy_price,
+                "spy_vs_200sma": indicators.spy_vs_200sma,
+                "spy_vs_50sma": indicators.spy_vs_50sma,
+            },
+        }
+
+        return (
+            regime_gauge,
+            regime_summary,
+            indicators_display,
+            fg_gauge,
+            store_data,
+            regime_state.regime.value,
+            badge_color,
+        )
+
+    @app.callback(
+        Output("analyst-ratings-content", "children"),
+        Input("market-views-tabs", "active_tab"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def update_analyst_ratings(views_tab, main_tab):
+        """Update analyst ratings when tab is selected."""
+        if main_tab != "tab-regime" or views_tab != "analyst-tab":
+            return no_update
+
+        # Fetch analyst ratings
+        ratings, aggregate = fetch_market_analyst_consensus()
+
+        if not ratings:
+            return html.P("Unable to fetch analyst ratings", className="text-muted")
+
+        # Create ratings table
+        rows = []
+        for ticker, rating in ratings.items():
+            upside_class = "text-success" if rating.upside_pct and rating.upside_pct > 0 else "text-danger"
+            rows.append(html.Tr([
+                html.Td(html.Strong(ticker)),
+                html.Td(f"{rating.buy_pct:.0f}%", className="text-success"),
+                html.Td(f"{rating.hold_pct:.0f}%", className="text-warning"),
+                html.Td(f"{rating.sell_pct:.0f}%", className="text-danger"),
+                html.Td(
+                    f"{rating.upside_pct:+.1f}%" if rating.upside_pct else "N/A",
+                    className=upside_class,
+                ),
+            ]))
+
+        return html.Div([
+            # Aggregate summary
+            dbc.Alert([
+                html.Strong("Market Consensus: "),
+                html.Span(
+                    aggregate.label,
+                    className="text-success" if aggregate.label == "Bullish" else "text-danger" if aggregate.label == "Bearish" else "text-warning",
+                ),
+                html.Span(f" (Score: {aggregate.score:+.2f})", className="text-muted"),
+            ], color="light", className="mb-3"),
+
+            # Ratings table
+            dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Ticker"),
+                        html.Th("Buy"),
+                        html.Th("Hold"),
+                        html.Th("Sell"),
+                        html.Th("Upside"),
+                    ]),
+                ]),
+                html.Tbody(rows),
+            ], size="sm", striped=True, hover=True),
+        ])
+
+    @app.callback(
+        Output("sentiment-chart", "figure"),
+        Input("market-views-tabs", "active_tab"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def update_sentiment_chart(views_tab, main_tab):
+        """Update sentiment chart when tab is selected."""
+        import plotly.graph_objects as go
+
+        if main_tab != "tab-regime" or views_tab != "sentiment-tab":
+            return no_update
+
+        # Fetch aggregate sentiment
+        sentiments = get_aggregate_sentiment()
+
+        if not sentiments:
+            return go.Figure()
+
+        # Format for chart
+        sentiment_data = []
+        for key, sent in sentiments.items():
+            sentiment_data.append({
+                "source": sent.source.value,
+                "score": sent.score,
+                "label": sent.label,
+            })
+
+        return create_sentiment_bars(sentiment_data)
+
+    @app.callback(
+        Output("pdf-analysis-result", "children"),
+        Output("pdf-research-store", "data"),
+        Input("pdf-upload", "contents"),
+        State("pdf-upload", "filename"),
+        prevent_initial_call=True,
+    )
+    def process_uploaded_pdf(contents, filename):
+        """Process uploaded research PDF."""
+        if contents is None:
+            return no_update, no_update
+
+        if not is_pdf_support_available():
+            return (
+                dbc.Alert(
+                    "PDF processing is not available. Install PyMuPDF: pip install PyMuPDF",
+                    color="warning",
+                ),
+                None,
+            )
+
+        # Process PDF
+        summary = process_research_pdf(contents, filename or "research.pdf")
+
+        if summary is None:
+            return (
+                dbc.Alert("Error processing PDF", color="danger"),
+                None,
+            )
+
+        # Create result display
+        sentiment_class = {
+            "bullish": "success",
+            "bearish": "danger",
+            "neutral": "warning",
+        }.get(summary.sentiment, "secondary")
+
+        result = html.Div([
+            dbc.Alert([
+                html.Strong("File: "),
+                html.Span(summary.filename),
+            ], color="light", className="mb-2"),
+
+            dbc.Row([
+                dbc.Col([
+                    html.P([
+                        html.Strong("Sentiment: "),
+                        dbc.Badge(
+                            summary.sentiment.title(),
+                            color=sentiment_class,
+                        ),
+                    ]),
+                ], md=4),
+                dbc.Col([
+                    html.P([
+                        html.Strong("Words: "),
+                        html.Span(f"{summary.word_count:,}"),
+                    ]),
+                ], md=4),
+                dbc.Col([
+                    html.P([
+                        html.Strong("Keywords: "),
+                        html.Span(", ".join(summary.keywords[:5]) or "None"),
+                    ]),
+                ], md=4),
+            ], className="mb-2"),
+
+            html.Div([
+                html.Strong("Preview:"),
+                html.P(summary.preview, className="small text-muted border p-2 rounded"),
+            ]),
+        ])
+
+        # Store for later use
+        store_data = {
+            "filename": summary.filename,
+            "sentiment": summary.sentiment,
+            "score": get_sentiment_score(summary.sentiment),
+        }
+
+        return result, store_data
+
+    @app.callback(
+        [
+            Output("regime-recommendations", "children"),
+            Output("allocation-comparison-chart", "figure"),
+        ],
+        [
+            Input("regime-state-store", "data"),
+            Input("portfolio-store", "data"),
+        ],
+    )
+    def update_regime_recommendations(regime_data, portfolio_data):
+        """Update regime recommendations based on current regime and portfolio."""
+        import plotly.graph_objects as go
+        from domain.schemas import MarketRegime, RegimeState, RegimeIndicators, VolatilityRegime
+
+        empty_fig = go.Figure()
+
+        if not regime_data:
+            return (
+                html.P("Click 'Refresh Data' to detect market regime", className="text-muted"),
+                empty_fig,
+            )
+
+        # Reconstruct regime state
+        try:
+            indicators = RegimeIndicators(
+                vix_level=regime_data["indicators"]["vix_level"],
+                vix_percentile=regime_data["indicators"]["vix_percentile"],
+                spy_price=regime_data["indicators"]["spy_price"],
+                spy_200sma=regime_data["indicators"]["spy_price"],  # Approximate
+                spy_50sma=regime_data["indicators"]["spy_price"],   # Approximate
+                spy_vs_200sma=regime_data["indicators"]["spy_vs_200sma"],
+                spy_vs_50sma=regime_data["indicators"]["spy_vs_50sma"],
+                volatility_regime=VolatilityRegime.NORMAL,
+            )
+
+            regime_state = RegimeState(
+                regime=MarketRegime(regime_data["regime"]),
+                confidence=regime_data["confidence"],
+                score=regime_data["score"],
+                indicators=indicators,
+                signals=[],
+            )
+        except Exception:
+            return (
+                html.P("Error processing regime data", className="text-danger"),
+                empty_fig,
+            )
+
+        # Get or create portfolio
+        if portfolio_data and portfolio_data.get("holdings"):
+            holdings = [
+                PortfolioHolding(
+                    ticker=h["ticker"],
+                    weight=h["weight"],
+                )
+                for h in portfolio_data["holdings"]
+            ]
+            portfolio = Portfolio(holdings=holdings)
+        else:
+            portfolio = create_default_portfolio()
+
+        # Generate recommendations
+        recommendation = generate_regime_recommendation(portfolio, regime_state)
+        summary = get_recommendation_summary(recommendation)
+
+        # Create recommendations display
+        changes_rows = []
+        for change in summary["allocation_changes"]:
+            direction_icon = "↑" if change["direction"] == "up" else "↓" if change["direction"] == "down" else "→"
+            direction_class = "text-success" if change["direction"] == "up" else "text-danger" if change["direction"] == "down" else "text-muted"
+            changes_rows.append(html.Tr([
+                html.Td(change["asset_class"]),
+                html.Td(change["current"]),
+                html.Td(change["recommended"]),
+                html.Td(
+                    f"{direction_icon} {change['change']}",
+                    className=direction_class,
+                ),
+            ]))
+
+        recommendations_content = html.Div([
+            # Allocation changes table
+            html.H6("Allocation Adjustments"),
+            dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Asset Class"),
+                        html.Th("Current"),
+                        html.Th("Target"),
+                        html.Th("Change"),
+                    ]),
+                ]),
+                html.Tbody(changes_rows),
+            ], size="sm", bordered=True, className="mb-3"),
+
+            # ETF suggestions
+            html.H6("Suggested ETFs"),
+            html.Ul([
+                html.Li([
+                    html.Strong(etf["ticker"]),
+                    html.Span(f": {etf['reason']}", className="small text-muted"),
+                ])
+                for etf in summary["etf_suggestions"][:4]
+            ], className="small mb-3"),
+
+            # Rationale
+            html.H6("Rationale"),
+            html.Ul([
+                html.Li(r, className="small text-muted")
+                for r in summary["rationale"][:3]
+            ]),
+        ])
+
+        # Create allocation comparison chart
+        comparison_chart = create_allocation_comparison_chart(
+            current=recommendation.current_allocation,
+            recommended=recommendation.recommended_allocation,
+        )
+
+        return recommendations_content, comparison_chart
+
+    @app.callback(
+        Output("portfolio-store", "data", allow_duplicate=True),
+        Input("apply-regime-tilts-btn", "n_clicks"),
+        [
+            State("regime-state-store", "data"),
+            State("portfolio-store", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def apply_tilts_to_portfolio(n_clicks, regime_data, portfolio_data):
+        """Apply regime tilts to the current portfolio."""
+        from domain.schemas import MarketRegime, RegimeState, RegimeIndicators, VolatilityRegime
+
+        if not n_clicks or not regime_data:
+            return no_update
+
+        # Reconstruct regime state
+        try:
+            indicators = RegimeIndicators(
+                vix_level=regime_data["indicators"]["vix_level"],
+                vix_percentile=regime_data["indicators"]["vix_percentile"],
+                spy_price=regime_data["indicators"]["spy_price"],
+                spy_200sma=regime_data["indicators"]["spy_price"],
+                spy_50sma=regime_data["indicators"]["spy_price"],
+                spy_vs_200sma=regime_data["indicators"]["spy_vs_200sma"],
+                spy_vs_50sma=regime_data["indicators"]["spy_vs_50sma"],
+                volatility_regime=VolatilityRegime.NORMAL,
+            )
+
+            regime_state = RegimeState(
+                regime=MarketRegime(regime_data["regime"]),
+                confidence=regime_data["confidence"],
+                score=regime_data["score"],
+                indicators=indicators,
+                signals=[],
+            )
+        except Exception:
+            return no_update
+
+        # Get or create portfolio
+        if portfolio_data and portfolio_data.get("holdings"):
+            holdings = [
+                PortfolioHolding(
+                    ticker=h["ticker"],
+                    weight=h["weight"],
+                )
+                for h in portfolio_data["holdings"]
+            ]
+            portfolio = Portfolio(holdings=holdings)
+        else:
+            portfolio = create_default_portfolio()
+
+        # Apply tilts
+        tilted_portfolio = apply_regime_tilts(portfolio, regime_state)
+
+        # Return updated portfolio data
+        return {
+            "holdings": [
+                {"ticker": h.ticker, "weight": h.weight}
+                for h in tilted_portfolio.holdings
+            ],
+            "notes": tilted_portfolio.notes,
+        }

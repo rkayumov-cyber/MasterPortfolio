@@ -245,3 +245,114 @@ class OptimizationResult(BaseModel):
     search_space_size: int
     computation_time_seconds: float
     config: OptimizerConfig
+
+
+# ============================================================================
+# Market Regime Models
+# ============================================================================
+
+
+class MarketRegime(str, Enum):
+    """Market regime classification."""
+
+    BULL_RISK_ON = "Bull / Risk-On"
+    NEUTRAL = "Neutral / Transitional"
+    BEAR_RISK_OFF = "Bear / Risk-Off"
+
+
+class VolatilityRegime(str, Enum):
+    """Volatility regime classification."""
+
+    LOW = "Low"
+    NORMAL = "Normal"
+    HIGH = "High"
+    EXTREME = "Extreme"
+
+
+class RegimeIndicators(BaseModel):
+    """Technical indicators for regime detection."""
+
+    vix_level: float
+    vix_percentile: float = Field(ge=0, le=100)
+    spy_price: float
+    spy_200sma: float
+    spy_50sma: float
+    spy_vs_200sma: float  # % above/below 200 SMA
+    spy_vs_50sma: float  # % above/below 50 SMA
+    volatility_regime: VolatilityRegime
+
+
+class RegimeState(BaseModel):
+    """Complete market regime state."""
+
+    regime: MarketRegime
+    confidence: float = Field(ge=0, le=1)
+    score: float  # Raw score from -3 to +3
+    indicators: RegimeIndicators
+    signals: list[str] = Field(default_factory=list)
+
+
+class RegimeTilts(BaseModel):
+    """Regime-based portfolio tilts."""
+
+    equity_tilt: float = Field(ge=-0.5, le=0.5)
+    bond_tilt: float = Field(ge=-0.5, le=0.5)
+    alternatives_tilt: float = Field(ge=-0.5, le=0.5)
+    sector_tilts: dict[str, float] = Field(default_factory=dict)
+    region_tilts: dict[str, float] = Field(default_factory=dict)
+    etf_recommendations: list[dict] = Field(default_factory=list)
+
+
+class RegimeRecommendation(BaseModel):
+    """Portfolio recommendation based on regime."""
+
+    regime: MarketRegime
+    confidence: float
+    current_allocation: dict[str, float]
+    recommended_allocation: dict[str, float]
+    tilts_applied: RegimeTilts
+    etf_suggestions: list[dict]
+    rationale: list[str]
+
+
+class AnalystRating(BaseModel):
+    """Aggregated analyst rating for an ETF."""
+
+    ticker: str
+    buy_pct: float = Field(ge=0, le=100)
+    hold_pct: float = Field(ge=0, le=100)
+    sell_pct: float = Field(ge=0, le=100)
+    target_price: Optional[float] = None
+    current_price: Optional[float] = None
+    upside_pct: Optional[float] = None
+    num_analysts: Optional[int] = None
+
+
+class SentimentSource(str, Enum):
+    """Sentiment data source."""
+
+    FEAR_GREED = "Fear & Greed Index"
+    ANALYST = "Analyst Consensus"
+    SOCIAL = "Social Sentiment"
+    NEWS = "News Sentiment"
+    PDF_RESEARCH = "Uploaded Research"
+
+
+class SentimentData(BaseModel):
+    """Sentiment data from a source."""
+
+    source: SentimentSource
+    score: float = Field(ge=-1, le=1)  # -1 bearish to +1 bullish
+    label: str  # "bullish", "bearish", "neutral"
+    raw_value: Optional[float] = None  # Original value (e.g., Fear & Greed 0-100)
+    details: Optional[str] = None
+
+
+class ResearchSummary(BaseModel):
+    """Summary of uploaded research PDF."""
+
+    filename: str
+    sentiment: str  # "bullish", "bearish", "neutral"
+    word_count: int
+    preview: str
+    keywords: list[str] = Field(default_factory=list)

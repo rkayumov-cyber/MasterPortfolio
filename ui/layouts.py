@@ -52,6 +52,7 @@ def create_app_layout() -> dbc.Container:
             dbc.Tab(create_diversification_tab(), label="Diversification", tab_id="tab-diversification"),
             dbc.Tab(create_comparison_tab(), label="Compare Strategies", tab_id="tab-compare"),
             dbc.Tab(create_hedges_tab(), label="Hedges", tab_id="tab-hedges"),
+            dbc.Tab(create_regime_tab(), label="Market Regime", tab_id="tab-regime"),
             dbc.Tab(create_export_tab(), label="Export", tab_id="tab-export"),
         ], id="main-tabs", active_tab="tab-portfolio"),
 
@@ -1621,4 +1622,163 @@ def create_data_download_tab() -> dbc.Container:
                 ]),
             ], md=9),
         ]),
+    ], fluid=True, className="py-3")
+
+
+def create_regime_tab() -> dbc.Container:
+    """Create the Market Regime tab."""
+    return dbc.Container([
+        # Row 1: Regime Indicators
+        dbc.Row([
+            # Market Regime Gauge
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Market Regime"),
+                    dbc.CardBody([
+                        dcc.Graph(id="regime-gauge", style={"height": "250px"}),
+                        html.Div(id="regime-summary", className="text-center"),
+                    ]),
+                ]),
+            ], md=4),
+
+            # Technical Indicators
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Technical Indicators"),
+                    dbc.CardBody([
+                        html.Div(id="regime-indicators-display"),
+                    ]),
+                ]),
+            ], md=4),
+
+            # Fear & Greed Gauge
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Fear & Greed Index"),
+                    dbc.CardBody([
+                        dcc.Graph(id="fear-greed-gauge", style={"height": "250px"}),
+                    ]),
+                ]),
+            ], md=4),
+        ], className="mb-3"),
+
+        # Row 2: Market Views and Recommendations
+        dbc.Row([
+            # Market Views Panel (left)
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Market Views"),
+                    dbc.CardBody([
+                        dbc.Tabs([
+                            # Analyst Consensus Tab
+                            dbc.Tab([
+                                html.Div(
+                                    id="analyst-ratings-content",
+                                    className="p-2",
+                                ),
+                            ], label="Analyst Consensus", tab_id="analyst-tab"),
+
+                            # Sentiment Tab
+                            dbc.Tab([
+                                dcc.Graph(id="sentiment-chart"),
+                            ], label="Sentiment", tab_id="sentiment-tab"),
+
+                            # Research Summary Tab
+                            dbc.Tab([
+                                html.Div(
+                                    id="research-summary-content",
+                                    className="p-2",
+                                ),
+                            ], label="Research", tab_id="research-tab"),
+
+                            # PDF Upload Tab
+                            dbc.Tab([
+                                dcc.Upload(
+                                    id="pdf-upload",
+                                    children=html.Div([
+                                        html.I(className="bi bi-file-pdf me-2"),
+                                        "Drag & drop or ",
+                                        html.A("click to upload", className="text-primary"),
+                                        " research PDF",
+                                    ]),
+                                    style={
+                                        "width": "100%",
+                                        "height": "100px",
+                                        "lineHeight": "100px",
+                                        "borderWidth": "2px",
+                                        "borderStyle": "dashed",
+                                        "borderRadius": "5px",
+                                        "textAlign": "center",
+                                        "cursor": "pointer",
+                                    },
+                                    className="mb-3 mt-2",
+                                    accept=".pdf",
+                                ),
+                                html.Div(id="pdf-analysis-result"),
+                            ], label="Upload PDF", tab_id="upload-tab"),
+
+                        ], id="market-views-tabs", active_tab="analyst-tab"),
+                    ]),
+                ]),
+            ], md=8),
+
+            # Recommendations Panel (right)
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("Portfolio Recommendations"),
+                        dbc.Badge(
+                            id="regime-badge",
+                            className="ms-2",
+                        ),
+                    ]),
+                    dbc.CardBody([
+                        # Recommendations content
+                        html.Div(id="regime-recommendations"),
+
+                        html.Hr(),
+
+                        # Allocation comparison chart
+                        dcc.Graph(
+                            id="allocation-comparison-chart",
+                            style={"height": "250px"},
+                        ),
+
+                        html.Hr(),
+
+                        # Action buttons
+                        dbc.Button(
+                            "Apply Regime Tilts",
+                            id="apply-regime-tilts-btn",
+                            color="primary",
+                            className="w-100 mb-2",
+                        ),
+                        dbc.Button(
+                            "Refresh Data",
+                            id="refresh-regime-btn",
+                            color="secondary",
+                            outline=True,
+                            className="w-100",
+                        ),
+                    ]),
+                ]),
+            ], md=4),
+        ]),
+
+        # Stores and intervals
+        dcc.Store(id="regime-state-store", storage_type="memory"),
+        dcc.Store(id="pdf-research-store", storage_type="memory"),
+        dcc.Interval(
+            id="regime-refresh-interval",
+            interval=15 * 60 * 1000,  # 15 minutes
+            n_intervals=0,
+            disabled=True,  # Disabled by default, enable manually
+        ),
+
+        # Loading spinner for regime detection
+        dcc.Loading(
+            id="regime-loading",
+            type="default",
+            children=html.Div(id="regime-loading-output"),
+        ),
     ], fluid=True, className="py-3")

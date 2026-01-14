@@ -1061,3 +1061,275 @@ def create_optimization_scatter_matrix(
     fig.update_traces(diagonal_visible=False)
 
     return apply_bb_layout(fig)
+
+
+# =============================================================================
+# Market Regime Charts
+# =============================================================================
+
+
+def create_regime_gauge(
+    regime_value: float,
+    confidence: float,
+    regime_label: str,
+    title: str = "Market Regime",
+) -> go.Figure:
+    """
+    Create market regime gauge indicator.
+
+    Args:
+        regime_value: Value from -1 (bearish) to +1 (bullish)
+        confidence: Confidence level 0-1
+        regime_label: Text label for current regime
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=regime_value,
+        domain={"x": [0, 1], "y": [0, 1]},
+        number={
+            "suffix": "",
+            "font": {"size": 24, "color": BB_COLORS["text"]},
+            "valueformat": "+.2f",
+        },
+        gauge={
+            "axis": {
+                "range": [-1, 1],
+                "tickwidth": 1,
+                "tickcolor": BB_COLORS["text"],
+                "tickvals": [-1, -0.5, 0, 0.5, 1],
+                "ticktext": ["Bear", "", "Neutral", "", "Bull"],
+            },
+            "bar": {"color": BB_COLORS["orange"], "thickness": 0.75},
+            "bgcolor": BB_COLORS["bg"],
+            "borderwidth": 2,
+            "bordercolor": BB_COLORS["grid"],
+            "steps": [
+                {"range": [-1, -0.5], "color": BB_COLORS["red"]},
+                {"range": [-0.5, -0.15], "color": "#CC4444"},
+                {"range": [-0.15, 0.15], "color": BB_COLORS["yellow"]},
+                {"range": [0.15, 0.5], "color": "#44AA44"},
+                {"range": [0.5, 1], "color": BB_COLORS["green"]},
+            ],
+            "threshold": {
+                "line": {"color": BB_COLORS["white"], "width": 4},
+                "thickness": 0.8,
+                "value": regime_value,
+            },
+        },
+    ))
+
+    fig.update_layout(
+        margin=dict(l=30, r=30, t=60, b=30),
+        height=250,
+        annotations=[
+            dict(
+                text=f"<b>{regime_label}</b><br>Confidence: {confidence:.0%}",
+                x=0.5,
+                y=-0.1,
+                showarrow=False,
+                font=dict(size=14, color=BB_COLORS["text"]),
+                xanchor="center",
+            ),
+        ],
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fear_greed_gauge(
+    score: float,
+    label: str,
+    title: str = "Fear & Greed Index",
+) -> go.Figure:
+    """
+    Create Fear & Greed Index gauge.
+
+    Args:
+        score: Score from 0 (extreme fear) to 100 (extreme greed)
+        label: Text label (e.g., "Greed", "Fear")
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        domain={"x": [0, 1], "y": [0, 1]},
+        number={
+            "font": {"size": 32, "color": BB_COLORS["text"]},
+            "valueformat": ".0f",
+        },
+        gauge={
+            "axis": {
+                "range": [0, 100],
+                "tickwidth": 1,
+                "tickcolor": BB_COLORS["text"],
+                "tickvals": [0, 25, 50, 75, 100],
+                "ticktext": ["Fear", "", "Neutral", "", "Greed"],
+            },
+            "bar": {"color": BB_COLORS["orange"], "thickness": 0.75},
+            "bgcolor": BB_COLORS["bg"],
+            "borderwidth": 2,
+            "bordercolor": BB_COLORS["grid"],
+            "steps": [
+                {"range": [0, 25], "color": BB_COLORS["red"]},
+                {"range": [25, 45], "color": "#CC6644"},
+                {"range": [45, 55], "color": BB_COLORS["yellow"]},
+                {"range": [55, 75], "color": "#66AA66"},
+                {"range": [75, 100], "color": BB_COLORS["green"]},
+            ],
+            "threshold": {
+                "line": {"color": BB_COLORS["white"], "width": 4},
+                "thickness": 0.8,
+                "value": score,
+            },
+        },
+    ))
+
+    fig.update_layout(
+        margin=dict(l=30, r=30, t=60, b=30),
+        height=250,
+        annotations=[
+            dict(
+                text=f"<b>{label}</b>",
+                x=0.5,
+                y=-0.1,
+                showarrow=False,
+                font=dict(size=14, color=BB_COLORS["text"]),
+                xanchor="center",
+            ),
+        ],
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_sentiment_bars(
+    sentiment_data: list[dict],
+    title: str = "Sentiment by Source",
+) -> go.Figure:
+    """
+    Create horizontal bar chart for sentiment from multiple sources.
+
+    Args:
+        sentiment_data: List of {source, score, label} dicts
+            score ranges from -1 (bearish) to +1 (bullish)
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    if not sentiment_data:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No sentiment data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(color=BB_COLORS["muted"]),
+        )
+        return apply_bb_layout(fig)
+
+    sources = [d["source"] for d in sentiment_data]
+    scores = [d["score"] for d in sentiment_data]
+    labels = [d.get("label", "") for d in sentiment_data]
+
+    colors = []
+    for score in scores:
+        if score > 0.3:
+            colors.append(BB_COLORS["green"])
+        elif score < -0.3:
+            colors.append(BB_COLORS["red"])
+        else:
+            colors.append(BB_COLORS["yellow"])
+
+    fig = go.Figure(data=[go.Bar(
+        y=sources,
+        x=scores,
+        orientation="h",
+        marker_color=colors,
+        text=[f"{s:+.0%} ({l})" for s, l in zip(scores, labels)],
+        textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
+        hovertemplate="<b>%{y}</b><br>Score: %{x:+.2f}<extra></extra>",
+    )])
+
+    fig.update_layout(
+        title=title,
+        xaxis=dict(
+            range=[-1.2, 1.2],
+            title="Bearish ← Sentiment → Bullish",
+            zeroline=True,
+            zerolinecolor=BB_COLORS["muted"],
+            zerolinewidth=2,
+        ),
+        yaxis=dict(title=""),
+        margin=dict(l=120, r=80, t=50, b=50),
+        height=max(200, len(sources) * 50 + 100),
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_allocation_comparison_chart(
+    current: dict[str, float],
+    recommended: dict[str, float],
+    title: str = "Current vs Recommended Allocation",
+) -> go.Figure:
+    """
+    Create grouped bar chart comparing current vs recommended allocation.
+
+    Args:
+        current: Current allocation {asset_class: weight}
+        recommended: Recommended allocation {asset_class: weight}
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    asset_classes = list(current.keys())
+
+    fig = go.Figure()
+
+    # Current allocation bars
+    fig.add_trace(go.Bar(
+        name="Current",
+        x=asset_classes,
+        y=[current.get(ac, 0) for ac in asset_classes],
+        marker_color=BB_COLORS["muted"],
+        text=[f"{current.get(ac, 0):.0%}" for ac in asset_classes],
+        textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
+    ))
+
+    # Recommended allocation bars
+    fig.add_trace(go.Bar(
+        name="Recommended",
+        x=asset_classes,
+        y=[recommended.get(ac, 0) for ac in asset_classes],
+        marker_color=BB_COLORS["orange"],
+        text=[f"{recommended.get(ac, 0):.0%}" for ac in asset_classes],
+        textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
+    ))
+
+    fig.update_layout(
+        title=title,
+        barmode="group",
+        xaxis_title="Asset Class",
+        yaxis_title="Allocation",
+        yaxis_tickformat=".0%",
+        yaxis_range=[0, max(max(current.values()), max(recommended.values())) * 1.2],
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        margin=dict(l=60, r=30, t=80, b=50),
+        height=300,
+    )
+
+    return apply_bb_layout(fig)
