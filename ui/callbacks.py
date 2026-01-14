@@ -13,6 +13,8 @@ from domain.schemas import (
     BenchmarkConfig,
     Constraints,
     CostConfig,
+    OptimizationObjective,
+    OptimizerConfig,
     Portfolio,
     PortfolioHolding,
     PortfolioRequest,
@@ -35,8 +37,11 @@ from ui.charts import (
     create_allocation_pie,
     create_correlation_heatmap,
     create_drawdown_chart,
+    create_efficient_frontier_chart,
     create_equity_curve_chart,
     create_holdings_bar,
+    create_optimal_weights_chart,
+    create_optimizer_comparison_chart,
     create_stress_test_bars,
 )
 from ui.layouts import create_metrics_row
@@ -1817,3 +1822,402 @@ def register_callbacks(app):
         hide_btn = {"display": "none"}
 
         return store_data, display, chart, success_msg, "", hide_btn, hide_btn
+
+    # =========================================================================
+    # Portfolio Optimizer Callbacks
+    # =========================================================================
+
+    @app.callback(
+        Output("etf-count-feedback", "children"),
+        Input("optimizer-etf-dropdown", "value"),
+    )
+    def update_etf_count(selected_etfs):
+        """Show feedback on ETF selection count."""
+        if not selected_etfs:
+            return dbc.Alert(
+                "Select 2-8 ETFs to optimize",
+                color="info",
+                className="py-1 mb-0",
+            )
+
+        count = len(selected_etfs)
+        if count < 2:
+            return dbc.Alert(
+                f"Select at least 2 ETFs ({count} selected)",
+                color="warning",
+                className="py-1 mb-0",
+            )
+        elif count > 8:
+            return dbc.Alert(
+                f"Maximum 8 ETFs allowed ({count} selected)",
+                color="danger",
+                className="py-1 mb-0",
+            )
+        else:
+            return dbc.Alert(
+                f"{count} ETFs selected",
+                color="success",
+                className="py-1 mb-0",
+            )
+
+    @app.callback(
+        Output("search-space-estimate", "children"),
+        [Input("optimizer-etf-dropdown", "value"),
+         Input("optimizer-weight-step", "value"),
+         Input("optimizer-min-weight", "value"),
+         Input("optimizer-max-weight", "value")],
+    )
+    def estimate_search_space(etfs, step, min_w, max_w):
+        """Estimate and display search space size."""
+        if not etfs or len(etfs) < 2:
+            return ""
+
+        from engines.optimizer import estimate_search_space_size
+
+        n = len(etfs)
+        try:
+            size = estimate_search_space_size(n, step, min_w, max_w)
+
+            if size > 100000:
+                warning = " (may take a while)"
+                color = "warning"
+            elif size > 10000:
+                warning = ""
+                color = "info"
+            else:
+                warning = ""
+                color = "success"
+
+            return dbc.Alert(
+                f"Search space: {size:,} combinations{warning}",
+                color=color,
+                className="py-1 mb-0",
+            )
+        except Exception:
+            return ""
+
+    @app.callback(
+        [Output("optimizer-store", "data"),
+         Output("optimal-portfolio-summary", "children"),
+         Output("optimizer-metrics-cards", "children"),
+         Output("efficient-frontier-chart", "figure"),
+         Output("optimal-weights-chart", "figure"),
+         Output("optimizer-comparison-chart", "figure"),
+         Output("all-portfolios-table", "children"),
+         Output("use-optimal-portfolio-btn", "disabled"),
+         Output("optimizer-loading", "children")],
+        Input("run-optimizer-btn", "n_clicks"),
+        [State("optimizer-etf-dropdown", "value"),
+         State("optimizer-objective", "value"),
+         State("optimizer-date-range", "start_date"),
+         State("optimizer-date-range", "end_date"),
+         State("optimizer-weight-step", "value"),
+         State("optimizer-min-weight", "value"),
+         State("optimizer-max-weight", "value")],
+        prevent_initial_call=True,
+    )
+    def run_optimization_callback(n_clicks, etfs, objective, start_date, end_date,
+                                  weight_step, min_weight, max_weight):
+        """Run portfolio optimization."""
+        from engines.optimizer import run_optimization
+        from domain.schemas import OptimizationObjective, OptimizerConfig
+        from ui.charts import (
+            create_efficient_frontier_chart,
+            create_optimal_weights_chart,
+            create_optimizer_comparison_chart,
+        )
+
+        if not n_clicks or not etfs or len(etfs) < 2:
+            return (no_update,) * 9
+
+        if len(etfs) > 8:
+            error_msg = html.P("Maximum 8 ETFs allowed", className="text-danger")
+            return None, error_msg, "", {}, {}, {}, "", True, ""
+
+        # Parse dates
+        if isinstance(start_date, str):
+            start_date = date.fromisoformat(start_date.split("T")[0])
+        if isinstance(end_date, str):
+            end_date = date.fromisoformat(end_date.split("T")[0])
+
+        # Map objective string to enum
+        objective_map = {
+            "MAX_SHARPE": OptimizationObjective.MAX_SHARPE,
+            "MAX_CAGR": OptimizationObjective.MAX_CAGR,
+            "MIN_VOLATILITY": OptimizationObjective.MIN_VOLATILITY,
+        }
+        objective_enum = objective_map.get(objective, OptimizationObjective.MAX_SHARPE)
+
+        try:
+            config = OptimizerConfig(
+                tickers=etfs,
+                objective=objective_enum,
+                weight_step=weight_step,
+                min_weight=min_weight,
+                max_weight=max_weight,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            result = run_optimization(config)
+
+            # Build optimal portfolio summary
+            best = result.best_portfolio
+            summary = html.Div([
+                html.H5(f"Objective: {result.objective.value}"),
+                html.P(
+                    f"Searched {result.search_space_size:,} combinations in "
+                    f"{result.computation_time_seconds:.1f} seconds"
+                ),
+                html.Hr(),
+                html.H6("Optimal Allocation:"),
+                html.Ul([
+                    html.Li(f"{ticker}: {weight:.1%}")
+                    for ticker, weight in sorted(
+                        best.weights.items(),
+                        key=lambda x: -x[1]
+                    )
+                    if weight > 0.001
+                ]),
+            ])
+
+            # Metrics cards
+            metrics_row = dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"{best.sharpe_ratio:.2f}", className="text-primary mb-0"),
+                            html.Small("Sharpe Ratio", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(
+                                f"{best.cagr:.1%}",
+                                className="text-success mb-0" if best.cagr > 0 else "text-danger mb-0"
+                            ),
+                            html.Small("CAGR", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"{best.volatility:.1%}", className="text-info mb-0"),
+                            html.Small("Volatility", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(
+                                f"{best.total_return:.1%}",
+                                className="text-success mb-0" if best.total_return > 0 else "text-danger mb-0"
+                            ),
+                            html.Small("Total Return", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"{best.max_drawdown:.1%}", className="text-danger mb-0"),
+                            html.Small("Max Drawdown", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(f"{result.search_space_size:,}", className="text-secondary mb-0"),
+                            html.Small("Combinations", className="text-muted"),
+                        ]),
+                    ], className="text-center"),
+                ], md=2),
+            ])
+
+            # Prepare data for efficient frontier chart
+            all_portfolios_data = [
+                {
+                    "volatility": p.volatility,
+                    "cagr": p.cagr,
+                    "sharpe_ratio": p.sharpe_ratio,
+                }
+                for p in result.all_portfolios
+            ]
+
+            optimal_point = {
+                "volatility": best.volatility,
+                "return": best.cagr,
+                "sharpe": best.sharpe_ratio,
+            }
+            frontier_chart = create_efficient_frontier_chart(
+                all_portfolios_data,
+                result.efficient_frontier,
+                optimal_point=optimal_point,
+            )
+
+            # Weights pie chart
+            weights_chart = create_optimal_weights_chart(best.weights)
+
+            # Comparison chart - run backtest on optimal portfolio
+            holdings = [
+                PortfolioHolding(ticker=t, weight=w)
+                for t, w in best.weights.items()
+                if w > 0.001
+            ]
+            backtest_request = BacktestRequest(
+                portfolio=holdings,
+                start_date=start_date,
+                end_date=end_date,
+                rebalance=RebalanceFrequency.QUARTERLY,
+                benchmark=BenchmarkConfig(ticker="SPY"),
+                costs=CostConfig(enabled=False),
+            )
+            backtest_result = run_backtest(backtest_request)
+            comparison_chart = create_optimizer_comparison_chart(
+                backtest_result.equity_curve,
+            )
+
+            # All portfolios table (show top 50 by Sharpe)
+            sorted_portfolios = sorted(
+                result.all_portfolios,
+                key=lambda p: p.sharpe_ratio,
+                reverse=True,
+            )[:50]
+
+            table_rows = []
+            for i, p in enumerate(sorted_portfolios):
+                weights_str = ", ".join(
+                    f"{t}:{w:.0%}"
+                    for t, w in sorted(p.weights.items(), key=lambda x: -x[1])
+                    if w > 0.001
+                )
+                if len(weights_str) > 60:
+                    weights_str = weights_str[:60] + "..."
+                table_rows.append(
+                    html.Tr([
+                        html.Td(str(i + 1)),
+                        html.Td(f"{p.sharpe_ratio:.2f}"),
+                        html.Td(f"{p.cagr:.1%}"),
+                        html.Td(f"{p.volatility:.1%}"),
+                        html.Td(f"{p.max_drawdown:.1%}"),
+                        html.Td(weights_str, className="small"),
+                    ])
+                )
+
+            all_table = dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Rank"),
+                        html.Th("Sharpe"),
+                        html.Th("CAGR"),
+                        html.Th("Vol"),
+                        html.Th("Max DD"),
+                        html.Th("Weights"),
+                    ])
+                ]),
+                html.Tbody(table_rows),
+            ], striped=True, bordered=True, hover=True, responsive=True, size="sm")
+
+            # Store data
+            store_data = {
+                "best_portfolio": {
+                    "weights": best.weights,
+                    "sharpe_ratio": best.sharpe_ratio,
+                    "cagr": best.cagr,
+                    "volatility": best.volatility,
+                    "total_return": best.total_return,
+                    "max_drawdown": best.max_drawdown,
+                },
+                "objective": objective,
+                "search_space_size": result.search_space_size,
+                "computation_time": result.computation_time_seconds,
+            }
+
+            loading_msg = f"Optimization complete ({result.computation_time_seconds:.1f}s)"
+
+            return (
+                store_data,
+                summary,
+                metrics_row,
+                frontier_chart,
+                weights_chart,
+                comparison_chart,
+                all_table,
+                False,  # Enable use button
+                loading_msg,
+            )
+
+        except Exception as e:
+            error_msg = html.Div([
+                html.P(f"Optimization failed: {str(e)}", className="text-danger"),
+            ])
+            return None, error_msg, "", {}, {}, {}, "", True, str(e)
+
+    @app.callback(
+        [Output("portfolio-store", "data", allow_duplicate=True),
+         Output("portfolio-display", "children", allow_duplicate=True),
+         Output("holdings-chart", "figure", allow_duplicate=True),
+         Output("use-portfolio-feedback", "children")],
+        Input("use-optimal-portfolio-btn", "n_clicks"),
+        State("optimizer-store", "data"),
+        prevent_initial_call=True,
+    )
+    def use_optimal_portfolio(n_clicks, optimizer_data):
+        """Transfer optimal portfolio to main portfolio store."""
+        if not n_clicks or not optimizer_data:
+            return (no_update,) * 4
+
+        best = optimizer_data.get("best_portfolio", {})
+        weights = best.get("weights", {})
+
+        if not weights:
+            return (no_update,) * 4
+
+        # Build holdings data
+        holdings_data = [
+            {"ticker": ticker, "weight": weight, "rationale": "Optimized allocation"}
+            for ticker, weight in weights.items()
+            if weight > 0.001
+        ]
+
+        # Create display
+        display = html.Div([
+            html.H5(f"Optimized Portfolio ({len(holdings_data)} holdings)"),
+            html.P(
+                f"Sharpe: {best['sharpe_ratio']:.2f} | "
+                f"CAGR: {best['cagr']:.1%} | "
+                f"Vol: {best['volatility']:.1%}",
+                className="text-muted"
+            ),
+            html.Hr(),
+            html.Ul([
+                html.Li(f"{h['ticker']}: {h['weight']:.1%}")
+                for h in sorted(holdings_data, key=lambda x: -x['weight'])
+            ]),
+        ])
+
+        # Create chart
+        chart = create_holdings_bar(holdings_data)
+
+        # Store data
+        store_data = {
+            "holdings": holdings_data,
+            "notes": [
+                f"Optimized for {optimizer_data.get('objective', 'MAX_SHARPE')}",
+                f"Sharpe Ratio: {best['sharpe_ratio']:.2f}",
+                f"Expected CAGR: {best['cagr']:.1%}",
+            ],
+        }
+
+        feedback = dbc.Alert(
+            "Portfolio transferred! Go to Backtest tab to analyze.",
+            color="success",
+            duration=5000,
+        )
+
+        return store_data, display, chart, feedback

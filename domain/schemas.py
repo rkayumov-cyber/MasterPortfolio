@@ -190,3 +190,52 @@ class StressTestResult(BaseModel):
     scenario_name: str
     portfolio_impact: float
     benchmark_impact: float
+
+
+# ============================================================================
+# Optimizer Models
+# ============================================================================
+
+
+class OptimizationObjective(str, Enum):
+    """Optimization objective types."""
+
+    MAX_SHARPE = "Maximum Sharpe Ratio"
+    MAX_CAGR = "Maximum CAGR"
+    MIN_VOLATILITY = "Minimum Volatility"
+
+
+class OptimizerConfig(BaseModel):
+    """Configuration for portfolio optimization."""
+
+    tickers: list[str] = Field(..., min_length=2, max_length=8)
+    objective: OptimizationObjective = OptimizationObjective.MAX_SHARPE
+    weight_step: float = Field(default=0.05, ge=0.01, le=0.25)
+    min_weight: float = Field(default=0.0, ge=0.0, le=0.5)
+    max_weight: float = Field(default=1.0, ge=0.1, le=1.0)
+    start_date: date
+    end_date: date
+    rebalance: RebalanceFrequency = RebalanceFrequency.QUARTERLY
+
+
+class OptimizedPortfolio(BaseModel):
+    """Single portfolio result from optimization."""
+
+    weights: dict[str, float]
+    sharpe_ratio: float
+    cagr: float
+    volatility: float
+    total_return: float
+    max_drawdown: float
+
+
+class OptimizationResult(BaseModel):
+    """Complete optimization result."""
+
+    best_portfolio: OptimizedPortfolio
+    objective: OptimizationObjective
+    all_portfolios: list[OptimizedPortfolio]
+    efficient_frontier: list[dict]
+    search_space_size: int
+    computation_time_seconds: float
+    config: OptimizerConfig

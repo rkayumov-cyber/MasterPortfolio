@@ -24,6 +24,7 @@ def create_app_layout() -> dbc.Container:
         # Main tabs
         dbc.Tabs([
             dbc.Tab(create_portfolio_tab(), label="Portfolio Builder", tab_id="tab-portfolio"),
+            dbc.Tab(create_optimizer_tab(), label="Optimizer", tab_id="tab-optimizer"),
             dbc.Tab(create_screener_tab(), label="ETF Screener", tab_id="tab-screener"),
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
             dbc.Tab(create_rebalancing_tab(), label="Rebalance", tab_id="tab-rebalance"),
@@ -43,6 +44,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="advanced-analytics-store", storage_type="memory"),
         dcc.Store(id="rebalance-store", storage_type="memory"),
         dcc.Store(id="screener-store", storage_type="memory"),
+        dcc.Store(id="optimizer-store", storage_type="memory"),
 
     ], fluid=True)
 
@@ -1207,3 +1209,211 @@ def create_metrics_row(metrics: dict) -> dbc.Row:
         dbc.Col(create_metric_card(label, value, fmt), md=2)
         for label, value, fmt in cards
     ])
+
+
+def create_optimizer_tab() -> dbc.Container:
+    """Create the Portfolio Optimizer tab."""
+    default_end = date.today()
+    default_start = default_end - timedelta(days=365 * 5)
+
+    # Get ETFs excluding inverse/leveraged
+    etf_options = [
+        {"label": f"{etf.ticker} - {etf.name[:35]}", "value": etf.ticker}
+        for etf in ETF_UNIVERSE
+        if etf.asset_class.value != "Inverse"
+    ]
+
+    return dbc.Container([
+        dbc.Row([
+            # Left panel - Controls
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Optimization Settings"),
+                    dbc.CardBody([
+                        # ETF Selection
+                        html.Label("Select ETFs (2-8)", className="fw-bold"),
+                        html.P(
+                            "Choose ETFs to include in optimization",
+                            className="text-muted small"
+                        ),
+                        dcc.Dropdown(
+                            id="optimizer-etf-dropdown",
+                            options=etf_options,
+                            multi=True,
+                            placeholder="Select 2-8 ETFs...",
+                            className="mb-2",
+                        ),
+
+                        html.Div(id="etf-count-feedback", className="mb-3"),
+
+                        # Optimization Objective
+                        html.Label("Optimization Objective", className="fw-bold"),
+                        dcc.RadioItems(
+                            id="optimizer-objective",
+                            options=[
+                                {"label": " Maximum Sharpe Ratio", "value": "MAX_SHARPE"},
+                                {"label": " Maximum CAGR", "value": "MAX_CAGR"},
+                                {"label": " Minimum Volatility", "value": "MIN_VOLATILITY"},
+                            ],
+                            value="MAX_SHARPE",
+                            className="mb-3",
+                            inputClassName="me-2",
+                            labelClassName="d-block mb-1",
+                        ),
+
+                        html.Hr(),
+
+                        # Date Range
+                        html.Label("Historical Period", className="fw-bold"),
+                        dcc.DatePickerRange(
+                            id="optimizer-date-range",
+                            start_date=default_start,
+                            end_date=default_end,
+                            max_date_allowed=default_end,
+                            className="mb-3",
+                        ),
+
+                        # Weight Constraints
+                        html.Label("Weight Step Size", className="fw-bold"),
+                        html.P(
+                            "Smaller step = more combinations",
+                            className="text-muted small"
+                        ),
+                        dcc.Dropdown(
+                            id="optimizer-weight-step",
+                            options=[
+                                {"label": "10% (Fast)", "value": 0.10},
+                                {"label": "5% (Recommended)", "value": 0.05},
+                                {"label": "2.5% (Detailed)", "value": 0.025},
+                            ],
+                            value=0.05,
+                            clearable=False,
+                            className="mb-3",
+                        ),
+
+                        html.Label("Min Weight per ETF", className="fw-bold"),
+                        dcc.Slider(
+                            id="optimizer-min-weight",
+                            min=0,
+                            max=0.20,
+                            step=0.05,
+                            value=0,
+                            marks={0: "0%", 0.05: "5%", 0.10: "10%", 0.15: "15%", 0.20: "20%"},
+                            className="mb-4",
+                        ),
+
+                        html.Label("Max Weight per ETF", className="fw-bold"),
+                        dcc.Slider(
+                            id="optimizer-max-weight",
+                            min=0.20,
+                            max=1.0,
+                            step=0.10,
+                            value=1.0,
+                            marks={
+                                0.2: "20%", 0.4: "40%", 0.6: "60%", 0.8: "80%", 1.0: "100%"
+                            },
+                            className="mb-4",
+                        ),
+
+                        # Search Space Estimate
+                        html.Div(id="search-space-estimate", className="mb-3"),
+
+                        # Run Button
+                        dbc.Button(
+                            "Run Optimization",
+                            id="run-optimizer-btn",
+                            color="success",
+                            size="lg",
+                            className="w-100 mb-2",
+                        ),
+
+                        dbc.Spinner(
+                            html.Div(id="optimizer-loading"),
+                            color="primary",
+                            type="border",
+                            size="sm",
+                        ),
+                    ]),
+                ]),
+            ], md=3),
+
+            # Right panel - Results
+            dbc.Col([
+                # Optimal Portfolio Summary
+                dbc.Card([
+                    dbc.CardHeader("Optimal Portfolio"),
+                    dbc.CardBody([
+                        html.Div(
+                            id="optimal-portfolio-summary",
+                            children=[
+                                html.P(
+                                    "Select ETFs and run optimization to find the "
+                                    "optimal allocation.",
+                                    className="text-muted"
+                                ),
+                            ],
+                        ),
+                    ]),
+                ], className="mb-3"),
+
+                # Metrics Cards
+                html.Div(id="optimizer-metrics-cards", className="mb-3"),
+
+                # Tabs for visualizations
+                dbc.Tabs([
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="efficient-frontier-chart"),
+                            ]),
+                        ]),
+                    ], label="Efficient Frontier", tab_id="frontier-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="optimal-weights-chart"),
+                            ]),
+                        ]),
+                    ], label="Optimal Weights", tab_id="weights-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Graph(id="optimizer-comparison-chart"),
+                            ]),
+                        ]),
+                    ], label="vs Benchmark", tab_id="compare-tab"),
+
+                    dbc.Tab([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.Div(id="all-portfolios-table"),
+                            ]),
+                        ]),
+                    ], label="All Combinations", tab_id="all-tab"),
+
+                ], id="optimizer-tabs", active_tab="frontier-tab"),
+
+                # Use Portfolio Button
+                dbc.Card([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Button(
+                                    "Use Optimal Portfolio",
+                                    id="use-optimal-portfolio-btn",
+                                    color="primary",
+                                    className="w-100",
+                                    disabled=True,
+                                ),
+                            ], md=6),
+                            dbc.Col([
+                                html.Div(id="use-portfolio-feedback"),
+                            ], md=6),
+                        ]),
+                    ]),
+                ], className="mt-3"),
+            ], md=9),
+        ]),
+    ], fluid=True, className="py-3")

@@ -696,3 +696,252 @@ def create_yield_chart(
     fig.update_yaxes(tickformat=".2%", row=1, col=2)
 
     return fig
+
+
+# ============================================================================
+# Optimizer Charts
+# ============================================================================
+
+
+def create_efficient_frontier_chart(
+    all_portfolios: list[dict],
+    frontier_data: list[dict],
+    optimal_point: dict = None,
+    title: str = "Efficient Frontier",
+) -> go.Figure:
+    """
+    Create efficient frontier scatter plot.
+
+    X-axis: Volatility
+    Y-axis: Expected Return (CAGR)
+    Color: Sharpe Ratio
+
+    Args:
+        all_portfolios: List of all evaluated portfolios
+        frontier_data: Points on the efficient frontier
+        optimal_point: The optimal portfolio to highlight
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure()
+
+    # All portfolios as background scatter
+    if all_portfolios:
+        vols = [p["volatility"] for p in all_portfolios]
+        returns = [p["cagr"] for p in all_portfolios]
+        sharpes = [p["sharpe_ratio"] for p in all_portfolios]
+
+        fig.add_trace(go.Scatter(
+            x=vols,
+            y=returns,
+            mode="markers",
+            name="All Portfolios",
+            marker=dict(
+                size=6,
+                color=sharpes,
+                colorscale="Viridis",
+                colorbar=dict(title="Sharpe", x=1.02),
+                showscale=True,
+                opacity=0.6,
+            ),
+            hovertemplate=(
+                "<b>Volatility:</b> %{x:.2%}<br>"
+                "<b>Return:</b> %{y:.2%}<br>"
+                "<b>Sharpe:</b> %{marker.color:.2f}<extra></extra>"
+            ),
+        ))
+
+    # Efficient frontier line
+    if frontier_data:
+        frontier_vols = [p["volatility"] for p in frontier_data]
+        frontier_returns = [p["return"] for p in frontier_data]
+
+        fig.add_trace(go.Scatter(
+            x=frontier_vols,
+            y=frontier_returns,
+            mode="lines+markers",
+            name="Efficient Frontier",
+            marker=dict(size=8, color="#E74C3C"),
+            line=dict(color="#E74C3C", width=2),
+            hovertemplate=(
+                "<b>Frontier Point</b><br>"
+                "<b>Volatility:</b> %{x:.2%}<br>"
+                "<b>Return:</b> %{y:.2%}<extra></extra>"
+            ),
+        ))
+
+    # Highlight optimal point
+    if optimal_point:
+        fig.add_trace(go.Scatter(
+            x=[optimal_point["volatility"]],
+            y=[optimal_point["return"]],
+            mode="markers",
+            name="Optimal Portfolio",
+            marker=dict(
+                size=20,
+                color="#F18F01",
+                symbol="star",
+                line=dict(width=2, color="white"),
+            ),
+            hovertemplate=(
+                "<b>OPTIMAL</b><br>"
+                "<b>Volatility:</b> %{x:.2%}<br>"
+                "<b>Return:</b> %{y:.2%}<extra></extra>"
+            ),
+        ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Volatility (Annualized)",
+        yaxis_title="Expected Return (CAGR)",
+        xaxis_tickformat=".1%",
+        yaxis_tickformat=".1%",
+        hovermode="closest",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        margin=dict(l=60, r=80, t=50, b=60),
+    )
+
+    return fig
+
+
+def create_optimal_weights_chart(
+    weights: dict[str, float],
+    title: str = "Optimal Portfolio Allocation",
+) -> go.Figure:
+    """
+    Create pie chart for optimal portfolio weights.
+
+    Args:
+        weights: Dict mapping ticker to weight
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    # Filter out zero/tiny weights
+    filtered = {k: v for k, v in weights.items() if v > 0.001}
+
+    if not filtered:
+        return go.Figure()
+
+    labels = list(filtered.keys())
+    values = list(filtered.values())
+
+    colors = px.colors.qualitative.Set2
+
+    fig = go.Figure(data=[go.Pie(
+        labels=labels,
+        values=values,
+        hole=0.4,
+        marker_colors=colors[:len(labels)],
+        textinfo="label+percent",
+        textposition="outside",
+        hovertemplate="<b>%{label}</b><br>Weight: %{value:.1%}<extra></extra>",
+    )])
+
+    fig.update_layout(
+        title=title,
+        margin=dict(l=30, r=30, t=50, b=30),
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.2),
+    )
+
+    return fig
+
+
+def create_optimizer_comparison_chart(
+    equity_data: list[dict],
+    title: str = "Optimal Portfolio vs Benchmark",
+) -> go.Figure:
+    """
+    Create equity curve comparison for optimized portfolio vs benchmark.
+
+    Args:
+        equity_data: List of {date, portfolio_value, benchmark_value}
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    if not equity_data:
+        return go.Figure()
+
+    df = pd.DataFrame(equity_data)
+
+    fig = go.Figure()
+
+    # Optimal portfolio
+    fig.add_trace(go.Scatter(
+        x=df["date"],
+        y=df["portfolio_value"],
+        mode="lines",
+        name="Optimal Portfolio",
+        line=dict(color="#27AE60", width=2),
+    ))
+
+    # Benchmark
+    if "benchmark_value" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df["date"],
+            y=df["benchmark_value"],
+            mode="lines",
+            name="Benchmark (SPY)",
+            line=dict(color="#A23B72", width=2, dash="dash"),
+        ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Growth of $10,000",
+        yaxis_tickformat="$,.0f",
+        hovermode="x unified",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        margin=dict(l=60, r=30, t=50, b=50),
+    )
+
+    return fig
+
+
+def create_optimization_scatter_matrix(
+    portfolios: list[dict],
+    title: str = "Portfolio Metrics Relationships",
+) -> go.Figure:
+    """
+    Create scatter matrix showing relationships between portfolio metrics.
+
+    Args:
+        portfolios: List of portfolio dicts with metrics
+        title: Chart title
+
+    Returns:
+        Plotly figure
+    """
+    if not portfolios:
+        return go.Figure()
+
+    df = pd.DataFrame(portfolios)
+
+    fig = px.scatter_matrix(
+        df,
+        dimensions=["volatility", "cagr", "sharpe_ratio", "max_drawdown"],
+        color="sharpe_ratio",
+        color_continuous_scale="Viridis",
+        title=title,
+        labels={
+            "volatility": "Vol",
+            "cagr": "CAGR",
+            "sharpe_ratio": "Sharpe",
+            "max_drawdown": "Max DD",
+        },
+    )
+
+    fig.update_layout(
+        margin=dict(l=50, r=50, t=80, b=50),
+        height=600,
+    )
+
+    fig.update_traces(diagonal_visible=False)
+
+    return fig
