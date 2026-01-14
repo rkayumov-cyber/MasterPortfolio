@@ -2229,37 +2229,297 @@ def register_callbacks(app):
     # Apply theme when selector changes
     app.clientside_callback(
         """
-        function(theme, storedTheme) {
-            // Use stored theme on initial load, otherwise use selected theme
-            var activeTheme = theme || storedTheme || 'theme-bloomberg';
+        function(theme) {
+            // Default to bloomberg if no theme selected
+            var activeTheme = theme || 'theme-bloomberg';
 
-            // Remove all theme classes
-            document.body.classList.remove(
-                'theme-light', 'theme-dark', 'theme-bloomberg',
-                'theme-modern', 'theme-professional'
-            );
+            // Remove all theme classes from body
+            var themeClasses = ['theme-light', 'theme-dark', 'theme-bloomberg',
+                               'theme-modern', 'theme-professional'];
+            themeClasses.forEach(function(cls) {
+                document.body.classList.remove(cls);
+            });
 
-            // Add selected theme class
+            // Add the selected theme class
             document.body.classList.add(activeTheme);
+
+            // Save to localStorage for persistence
+            try {
+                localStorage.setItem('etf-portfolio-theme', activeTheme);
+            } catch(e) {}
 
             return activeTheme;
         }
         """,
-        Output("theme-store", "data"),
+        Output("theme-output", "children"),
         Input("theme-selector", "value"),
-        State("theme-store", "data"),
     )
 
-    # Initialize theme selector from stored value on page load
-    app.clientside_callback(
-        """
-        function(storedTheme) {
-            var theme = storedTheme || 'theme-bloomberg';
-            // Apply theme immediately on load
-            document.body.classList.add(theme);
-            return theme;
-        }
-        """,
-        Output("theme-selector", "value"),
-        Input("theme-store", "data"),
+    # =========================================================================
+    # Data Download Callbacks
+    # =========================================================================
+
+    @app.callback(
+        Output("download-etf-count", "children"),
+        Input("download-etf-dropdown", "value"),
     )
+    def update_download_etf_count(tickers):
+        """Show selected ETF count."""
+        if not tickers:
+            return html.Span("No ETFs selected", className="text-muted")
+
+        count = len(tickers)
+        return html.Span(
+            f"{count} ETF{'s' if count > 1 else ''} selected",
+            className="text-success" if count > 0 else "text-muted"
+        )
+
+    @app.callback(
+        [Output("daily-options", "style"),
+         Output("intraday-options", "style")],
+        Input("download-data-type", "value"),
+    )
+    def toggle_data_type_options(data_type):
+        """Show/hide options based on data type."""
+        if data_type == "daily":
+            return {"display": "block"}, {"display": "none"}
+        else:
+            return {"display": "none"}, {"display": "block"}
+
+    @app.callback(
+        Output("intraday-limit-warning", "children"),
+        Input("download-interval", "value"),
+    )
+    def update_intraday_warning(interval):
+        """Show intraday data limitations."""
+        from services.data_client import INTRADAY_LIMITS
+        max_days = INTRADAY_LIMITS.get(interval, 60)
+        return f"Note: {interval} data available for last {max_days} days only (yfinance limit)"
+
+    @app.callback(
+        [Output("download-summary", "children"),
+         Output("download-preview-table", "children"),
+         Output("download-price-chart", "figure"),
+         Output("download-data-store", "data"),
+         Output("download-csv-btn", "disabled"),
+         Output("fetch-loading", "children")],
+        Input("fetch-data-btn", "n_clicks"),
+        [State("download-etf-dropdown", "value"),
+         State("download-data-type", "value"),
+         State("download-date-range", "start_date"),
+         State("download-date-range", "end_date"),
+         State("download-interval", "value"),
+         State("download-period", "value")],
+        prevent_initial_call=True,
+    )
+    def fetch_download_data(n_clicks, tickers, data_type, start_date, end_date,
+                           interval, period):
+        """Fetch data and update preview."""
+        import plotly.graph_objects as go
+        from services.data_client import fetch_intraday_prices, get_aligned_prices
+        from ui.charts import apply_bb_layout
+
+        if not tickers:
+            return (
+                html.P("Please select at least one ETF", className="text-warning"),
+                None,
+                go.Figure(),
+                None,
+                True,
+                ""
+            )
+
+        try:
+            if data_type == "daily":
+                # Fetch daily data
+                start = date.fromisoformat(start_date[:10]) if isinstance(start_date, str) else start_date
+                end = date.fromisoformat(end_date[:10]) if isinstance(end_date, str) else end_date
+
+                prices_df = get_aligned_prices(tickers, start, end, use_cache=False)
+
+                if prices_df is None or prices_df.empty:
+                    return (
+                        html.P("No data available for selected ETFs and date range",
+                               className="text-warning"),
+                        None,
+                        go.Figure(),
+                        None,
+                        True,
+                        ""
+                    )
+
+                # Reset index for display
+                display_df = prices_df.reset_index()
+                display_df.columns = ["Date"] + list(prices_df.columns)
+
+                # Summary
+                summary = html.Div([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H5(f"{len(tickers)}", className="text-primary mb-0"),
+                            html.Small("ETFs"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(f"{len(prices_df):,}", className="text-primary mb-0"),
+                            html.Small("Rows"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(str(prices_df.index.min()), className="text-primary mb-0"),
+                            html.Small("Start Date"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(str(prices_df.index.max()), className="text-primary mb-0"),
+                            html.Small("End Date"),
+                        ], className="text-center"),
+                    ]),
+                ])
+
+                # Preview table
+                preview_data = display_df.head(100).copy()
+                preview_data["Date"] = preview_data["Date"].astype(str)
+                for col in preview_data.columns[1:]:
+                    preview_data[col] = preview_data[col].round(2)
+
+                table = dbc.Table.from_dataframe(
+                    preview_data,
+                    striped=True,
+                    bordered=True,
+                    hover=True,
+                    size="sm",
+                )
+
+                # Chart
+                fig = go.Figure()
+                for ticker in tickers[:5]:  # Limit to 5 for chart clarity
+                    if ticker in prices_df.columns:
+                        fig.add_trace(go.Scatter(
+                            x=prices_df.index,
+                            y=prices_df[ticker],
+                            name=ticker,
+                            mode="lines",
+                        ))
+                fig.update_layout(
+                    title="Price History",
+                    xaxis_title="Date",
+                    yaxis_title="Price",
+                    hovermode="x unified",
+                )
+                apply_bb_layout(fig)
+
+                # Store data for download
+                store_data = {
+                    "type": "daily",
+                    "data": display_df.to_dict("records"),
+                    "columns": list(display_df.columns),
+                }
+
+                return summary, table, fig, store_data, False, ""
+
+            else:
+                # Fetch intraday data
+                intraday_df = fetch_intraday_prices(tickers, period, interval)
+
+                if intraday_df is None or intraday_df.empty:
+                    return (
+                        html.P("No intraday data available. Try a different period or interval.",
+                               className="text-warning"),
+                        None,
+                        go.Figure(),
+                        None,
+                        True,
+                        ""
+                    )
+
+                # Summary
+                summary = html.Div([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H5(f"{len(tickers)}", className="text-primary mb-0"),
+                            html.Small("ETFs"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(f"{len(intraday_df):,}", className="text-primary mb-0"),
+                            html.Small("Rows"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(interval, className="text-primary mb-0"),
+                            html.Small("Interval"),
+                        ], className="text-center"),
+                        dbc.Col([
+                            html.H5(period, className="text-primary mb-0"),
+                            html.Small("Period"),
+                        ], className="text-center"),
+                    ]),
+                ])
+
+                # Preview table
+                preview_data = intraday_df.head(100).copy()
+                preview_data["Datetime"] = preview_data["Datetime"].astype(str)
+                for col in ["Open", "High", "Low", "Close"]:
+                    if col in preview_data.columns:
+                        preview_data[col] = preview_data[col].round(2)
+
+                table = dbc.Table.from_dataframe(
+                    preview_data,
+                    striped=True,
+                    bordered=True,
+                    hover=True,
+                    size="sm",
+                )
+
+                # Chart - pivot to wide format for plotting
+                fig = go.Figure()
+                for ticker in tickers[:5]:
+                    ticker_data = intraday_df[intraday_df["Ticker"] == ticker]
+                    if not ticker_data.empty:
+                        fig.add_trace(go.Scatter(
+                            x=ticker_data["Datetime"],
+                            y=ticker_data["Close"],
+                            name=ticker,
+                            mode="lines",
+                        ))
+                fig.update_layout(
+                    title=f"Intraday Prices ({interval})",
+                    xaxis_title="Datetime",
+                    yaxis_title="Price",
+                    hovermode="x unified",
+                )
+                apply_bb_layout(fig)
+
+                # Store data for download
+                export_df = intraday_df.copy()
+                export_df["Datetime"] = export_df["Datetime"].astype(str)
+                store_data = {
+                    "type": "intraday",
+                    "data": export_df.to_dict("records"),
+                    "columns": list(export_df.columns),
+                }
+
+                return summary, table, fig, store_data, False, ""
+
+        except Exception as e:
+            return (
+                html.P(f"Error fetching data: {str(e)}", className="text-danger"),
+                None,
+                go.Figure(),
+                None,
+                True,
+                ""
+            )
+
+    @app.callback(
+        Output("download-intraday-csv", "data"),
+        Input("download-csv-btn", "n_clicks"),
+        State("download-data-store", "data"),
+        prevent_initial_call=True,
+    )
+    def download_csv(n_clicks, store_data):
+        """Download data as CSV."""
+        if not store_data or not store_data.get("data"):
+            return no_update
+
+        df = pd.DataFrame(store_data["data"])
+        data_type = store_data.get("type", "data")
+        filename = f"etf_{data_type}_{date.today().isoformat()}.csv"
+
+        return dcc.send_data_frame(df.to_csv, filename, index=False)

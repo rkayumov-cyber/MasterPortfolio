@@ -182,3 +182,151 @@ def get_cache_stats() -> dict:
         "size": len(cache),
         "volume": cache.volume(),
     }
+
+
+# =============================================================================
+# INTRADAY DATA FUNCTIONS
+# =============================================================================
+
+# yfinance intraday data limitations
+INTRADAY_LIMITS = {
+    "1m": 7,      # 7 days max
+    "2m": 60,     # 60 days max
+    "5m": 60,     # 60 days max
+    "15m": 60,    # 60 days max
+    "30m": 60,    # 60 days max
+    "60m": 730,   # 730 days max
+    "1h": 730,    # 730 days max
+    "90m": 60,    # 60 days max
+}
+
+
+def fetch_intraday_prices(
+    tickers: list[str],
+    period: str = "7d",
+    interval: str = "5m",
+) -> Optional[pd.DataFrame]:
+    """
+    Fetch intraday historical prices for multiple tickers.
+
+    Args:
+        tickers: List of ticker symbols
+        period: Period to fetch ('1d', '5d', '7d', '30d', '60d', 'max')
+        interval: Data interval ('1m', '5m', '15m', '30m', '60m', '1h')
+
+    Returns:
+        DataFrame with columns: Datetime, Ticker, Open, High, Low, Close, Volume
+
+    Note: yfinance limitations:
+        - 1m data: max 7 days
+        - 5m-30m data: max 60 days
+        - 60m/1h data: max 730 days
+    """
+    if interval not in INTRADAY_LIMITS:
+        raise ValueError(f"Invalid interval: {interval}. Must be one of {list(INTRADAY_LIMITS.keys())}")
+
+    all_data = []
+
+    for ticker in tickers:
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            hist = ticker_obj.history(period=period, interval=interval)
+
+            if hist.empty:
+                continue
+
+            # Reset index to get Datetime as column
+            hist = hist.reset_index()
+
+            # Rename the datetime column (it might be 'Date' or 'Datetime')
+            datetime_col = hist.columns[0]
+            hist = hist.rename(columns={datetime_col: "Datetime"})
+
+            # Handle timezone - convert to string for CSV compatibility
+            if hasattr(hist["Datetime"].dtype, 'tz') and hist["Datetime"].dt.tz is not None:
+                hist["Datetime"] = hist["Datetime"].dt.tz_localize(None)
+
+            # Add ticker column
+            hist["Ticker"] = ticker
+
+            # Select relevant columns
+            columns_to_keep = ["Datetime", "Ticker", "Open", "High", "Low", "Close", "Volume"]
+            available_cols = [c for c in columns_to_keep if c in hist.columns]
+            hist = hist[available_cols].copy()
+
+            all_data.append(hist)
+
+        except Exception as e:
+            print(f"Error fetching intraday data for {ticker}: {e}")
+            continue
+
+    if not all_data:
+        return None
+
+    # Combine all tickers
+    combined = pd.concat(all_data, ignore_index=True)
+
+    # Sort by datetime and ticker
+    combined = combined.sort_values(["Datetime", "Ticker"]).reset_index(drop=True)
+
+    return combined
+
+
+def fetch_intraday_wide(
+    tickers: list[str],
+    period: str = "7d",
+    interval: str = "5m",
+    price_type: str = "Close",
+) -> Optional[pd.DataFrame]:
+    """
+    Fetch intraday prices in wide format (datetime rows, ticker columns).
+
+    Args:
+        tickers: List of ticker symbols
+        period: Period to fetch ('1d', '5d', '7d', '30d', '60d')
+        interval: Data interval ('1m', '5m', '15m', '30m', '60m', '1h')
+        price_type: Price column to use ('Open', 'High', 'Low', 'Close')
+
+    Returns:
+        DataFrame with Datetime index and ticker columns
+    """
+    long_df = fetch_intraday_prices(tickers, period, interval)
+
+    if long_df is None or long_df.empty:
+        return None
+
+    # Pivot to wide format
+    wide = long_df.pivot(index="Datetime", columns="Ticker", values=price_type)
+
+    # Forward fill any gaps
+    wide = wide.ffill()
+
+    return wide
+
+
+def get_intraday_data_info(interval: str) -> dict:
+    """Get information about intraday data limits for a given interval."""
+    max_days = INTRADAY_LIMITS.get(interval, 0)
+    return {
+        "interval": interval,
+        "max_days": max_days,
+        "available_periods": _get_available_periods(max_days),
+    }
+
+
+def _get_available_periods(max_days: int) -> list[str]:
+    """Get available period options based on max days limit."""
+    periods = []
+    if max_days >= 1:
+        periods.append("1d")
+    if max_days >= 5:
+        periods.append("5d")
+    if max_days >= 7:
+        periods.append("7d")
+    if max_days >= 30:
+        periods.append("1mo")
+    if max_days >= 60:
+        periods.append("60d")
+    if max_days >= 90:
+        periods.append("3mo")
+    return periods

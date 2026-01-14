@@ -29,12 +29,18 @@ class Sector(str, Enum):
     HEALTHCARE = "Healthcare"
     INDUSTRIALS = "Industrials"
     CONSUMER_STAPLES = "Consumer Staples"
+    CONSUMER_DISCRETIONARY = "Consumer Discretionary"
     UTILITIES = "Utilities"
+    MATERIALS = "Materials"
+    COMMUNICATION = "Communication Services"
     REAL_ESTATE = "Real Estate"
     COMMODITIES = "Commodities"
     GOVERNMENT_BONDS = "Government Bonds"
     CORPORATE_BONDS = "Corporate Bonds"
     HIGH_YIELD = "High Yield"
+    MUNICIPAL_BONDS = "Municipal Bonds"
+    VOLATILITY = "Volatility"
+    LEVERAGED = "Leveraged"
 
 
 class RiskProfile(str, Enum):

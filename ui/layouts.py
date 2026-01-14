@@ -43,6 +43,7 @@ def create_app_layout() -> dbc.Container:
         dbc.Tabs([
             dbc.Tab(create_portfolio_tab(), label="Portfolio Builder", tab_id="tab-portfolio"),
             dbc.Tab(create_optimizer_tab(), label="Optimizer", tab_id="tab-optimizer"),
+            dbc.Tab(create_data_download_tab(), label="Data Download", tab_id="tab-download"),
             dbc.Tab(create_screener_tab(), label="ETF Screener", tab_id="tab-screener"),
             dbc.Tab(create_backtest_tab(), label="Backtest", tab_id="tab-backtest"),
             dbc.Tab(create_rebalancing_tab(), label="Rebalance", tab_id="tab-rebalance"),
@@ -63,7 +64,14 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="rebalance-store", storage_type="memory"),
         dcc.Store(id="screener-store", storage_type="memory"),
         dcc.Store(id="optimizer-store", storage_type="memory"),
-        dcc.Store(id="theme-store", storage_type="local", data="theme-bloomberg"),
+        dcc.Store(id="download-data-store", storage_type="memory"),
+
+        # Hidden div for theme callback output
+        html.Div(id="theme-output", style={"display": "none"}),
+
+        # Download components
+        dcc.Download(id="download-intraday-csv"),
+        dcc.Download(id="download-daily-csv"),
 
     ], fluid=True)
 
@@ -1433,6 +1441,184 @@ def create_optimizer_tab() -> dbc.Container:
                         ]),
                     ]),
                 ], className="mt-3"),
+            ], md=9),
+        ]),
+    ], fluid=True, className="py-3")
+
+
+def create_data_download_tab() -> dbc.Container:
+    """Create the Data Download tab for fetching historical and intraday data."""
+    default_end = date.today()
+    default_start = default_end - timedelta(days=365)
+
+    # Get all ETF options
+    etf_options = [
+        {"label": f"{etf.ticker} - {etf.name[:40]}", "value": etf.ticker}
+        for etf in ETF_UNIVERSE
+    ]
+
+    return dbc.Container([
+        dbc.Row([
+            # Left panel - Controls
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader("Download Settings"),
+                    dbc.CardBody([
+                        # ETF Selection
+                        html.Label("Select ETFs", className="fw-bold"),
+                        html.P("Choose ETFs to download data for", className="text-muted small"),
+                        dcc.Dropdown(
+                            id="download-etf-dropdown",
+                            options=etf_options,
+                            multi=True,
+                            placeholder="Select ETFs (e.g., SPY, QQQ, TLT)...",
+                            className="mb-3",
+                        ),
+                        html.Div(id="download-etf-count", className="mb-3"),
+
+                        html.Hr(),
+
+                        # Data Type Selection
+                        html.Label("Data Type", className="fw-bold"),
+                        dcc.RadioItems(
+                            id="download-data-type",
+                            options=[
+                                {"label": " Daily", "value": "daily"},
+                                {"label": " Intraday", "value": "intraday"},
+                            ],
+                            value="daily",
+                            className="mb-3",
+                            inputClassName="me-2",
+                            labelClassName="me-4",
+                        ),
+
+                        # Daily options
+                        html.Div(
+                            id="daily-options",
+                            children=[
+                                html.Label("Date Range", className="fw-bold"),
+                                dcc.DatePickerRange(
+                                    id="download-date-range",
+                                    start_date=default_start,
+                                    end_date=default_end,
+                                    max_date_allowed=default_end,
+                                    className="mb-3",
+                                ),
+                            ],
+                        ),
+
+                        # Intraday options
+                        html.Div(
+                            id="intraday-options",
+                            children=[
+                                html.Label("Interval", className="fw-bold"),
+                                dcc.Dropdown(
+                                    id="download-interval",
+                                    options=[
+                                        {"label": "1 Minute", "value": "1m"},
+                                        {"label": "5 Minutes", "value": "5m"},
+                                        {"label": "15 Minutes", "value": "15m"},
+                                        {"label": "30 Minutes", "value": "30m"},
+                                        {"label": "1 Hour", "value": "60m"},
+                                    ],
+                                    value="5m",
+                                    clearable=False,
+                                    className="mb-3",
+                                ),
+
+                                html.Label("Period", className="fw-bold"),
+                                dcc.Dropdown(
+                                    id="download-period",
+                                    options=[
+                                        {"label": "1 Day", "value": "1d"},
+                                        {"label": "5 Days", "value": "5d"},
+                                        {"label": "7 Days", "value": "7d"},
+                                        {"label": "1 Month", "value": "1mo"},
+                                        {"label": "60 Days", "value": "60d"},
+                                    ],
+                                    value="7d",
+                                    clearable=False,
+                                    className="mb-3",
+                                ),
+
+                                dbc.Alert(
+                                    id="intraday-limit-warning",
+                                    color="info",
+                                    className="small",
+                                ),
+                            ],
+                            style={"display": "none"},
+                        ),
+
+                        html.Hr(),
+
+                        # Fetch button
+                        dbc.Button(
+                            "Fetch Data",
+                            id="fetch-data-btn",
+                            color="primary",
+                            size="lg",
+                            className="w-100 mb-2",
+                        ),
+
+                        dbc.Spinner(
+                            html.Div(id="fetch-loading"),
+                            color="primary",
+                            type="border",
+                            size="sm",
+                        ),
+
+                        html.Hr(),
+
+                        # Download buttons
+                        html.Label("Export Data", className="fw-bold"),
+                        dbc.Button(
+                            "Download CSV",
+                            id="download-csv-btn",
+                            color="success",
+                            className="w-100 mb-2",
+                            disabled=True,
+                        ),
+                    ]),
+                ]),
+            ], md=3),
+
+            # Right panel - Preview
+            dbc.Col([
+                # Data summary
+                dbc.Card([
+                    dbc.CardHeader("Data Summary"),
+                    dbc.CardBody([
+                        html.Div(
+                            id="download-summary",
+                            children=[
+                                html.P(
+                                    "Select ETFs and click 'Fetch Data' to preview",
+                                    className="text-muted"
+                                ),
+                            ],
+                        ),
+                    ]),
+                ], className="mb-3"),
+
+                # Data preview table
+                dbc.Card([
+                    dbc.CardHeader("Data Preview (first 100 rows)"),
+                    dbc.CardBody([
+                        html.Div(
+                            id="download-preview-table",
+                            style={"maxHeight": "400px", "overflowY": "auto"},
+                        ),
+                    ]),
+                ], className="mb-3"),
+
+                # Price chart
+                dbc.Card([
+                    dbc.CardHeader("Price Chart"),
+                    dbc.CardBody([
+                        dcc.Graph(id="download-price-chart"),
+                    ]),
+                ]),
             ], md=9),
         ]),
     ], fluid=True, className="py-3")
