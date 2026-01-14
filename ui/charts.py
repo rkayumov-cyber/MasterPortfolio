@@ -658,10 +658,12 @@ def create_calendar_heatmap(
         textfont={"size": 10, "color": BB_COLORS["text"]},
         hovertemplate="<b>%{y} %{x}</b><br>Return: %{z:.2%}<extra></extra>",
         colorbar=dict(
-            title="Return",
+            title=dict(
+                text="Return",
+                font=dict(color=BB_COLORS["text"]),
+            ),
             tickformat=".0%",
             tickfont=dict(color=BB_COLORS["text"]),
-            titlefont=dict(color=BB_COLORS["text"]),
         ),
     ))
 
@@ -841,10 +843,12 @@ def create_efficient_frontier_chart(
                 color=sharpes,
                 colorscale=bb_sharpe_colorscale,
                 colorbar=dict(
-                    title="Sharpe",
+                    title=dict(
+                        text="Sharpe",
+                        font=dict(color=BB_COLORS["text"]),
+                    ),
                     x=1.02,
                     tickfont=dict(color=BB_COLORS["text"]),
-                    titlefont=dict(color=BB_COLORS["text"]),
                 ),
                 showscale=True,
                 opacity=0.7,
