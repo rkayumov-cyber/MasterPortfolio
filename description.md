@@ -1,10 +1,44 @@
 # ETF Portfolio Construction & Backtesting Tool (Local Web App)
-**Target users:** Professional portfolio managers  
-**Universe:** ETFs only  
-**Deployment:** Standalone local (Docker-first)  
-**Integrations:**  
-- **Market Capture Platform (MCP):** historical + real-time ETF data (prices/total return/metadata)  
-- **Liquid ETS:** trade execution (ETF orders; optional hedge execution)
+**Target users:** Professional portfolio managers
+**Universe:** ETFs only (100+ liquid ETFs)
+**Deployment:** Standalone local (Docker-first)
+**Data Source:** Yahoo Finance (yfinance) with disk caching
+**UI Framework:** Plotly Dash with Bloomberg-style theming
+
+---
+
+## Implemented Features (Current State)
+
+### Core Features
+- **Portfolio Builder** - Strategic, Risk Parity, Equal Weight, and preset strategies
+- **Backtesting Engine** - Historical simulation with rebalancing and transaction costs
+- **Portfolio Optimizer** - Exhaustive search with efficient frontier visualization
+- **Market Regime Detection** - Real-time regime classification with VIX/SMA indicators
+- **ETF Screener** - Filter and search 100+ liquid ETFs
+- **Hedging Recommendations** - Rule-based hedge suggestions
+
+### Analytics & Visualization
+- **Performance Metrics** - CAGR, Sharpe, Sortino, Max Drawdown, etc.
+- **Advanced Analytics** - Monte Carlo simulations, VaR/CVaR, rolling metrics
+- **Diversification Analysis** - Allocation breakdown, correlation heatmap, concentration metrics
+- **Stress Testing** - Historical and hypothetical scenario analysis
+- **Multi-Theme UI** - Bloomberg, Dark, Light, Modern, Professional themes
+
+### Data Features
+- **Intraday Data Download** - 1m to 1h intervals with CSV export
+- **Expanded ETF Universe** - 100+ ETFs including leveraged, volatility, sector, country ETFs
+- **Fear & Greed Index** - Live CNN Fear & Greed integration
+- **Analyst Consensus** - Aggregated buy/hold/sell ratings from yfinance
+- **PDF Research Upload** - Extract sentiment from research documents
+
+### Export & Integration
+- **CSV/JSON Export** - Portfolio and backtest results
+- **Portfolio Import** - Import holdings from CSV
+- **Rebalancing Calculator** - Calculate trades needed to rebalance
+
+---
+
+## Original Specification
 
 ---
 
@@ -632,10 +666,96 @@ Phase 7 — Execution (Optional, gated)
 Acceptance: in simulation mode, no live order calls are made.
 
 18) Notes / Open Assumptions (Make Explicit in Code)
-“World Portfolio” weights are approximate and must be configurable.
+"World Portfolio" weights are approximate and must be configurable.
 
 ETF look-through (sector/region) depends on MCP availability; fallback is tag-based.
 
-Option hedges are “idea output” unless execution permissions exist; default is ETF-based hedges.
+Option hedges are "idea output" unless execution permissions exist; default is ETF-based hedges.
+
+---
+
+## Current Project Structure (Implemented)
+
+```
+MasterPortfolio/
+├── app.py                      # Main Dash application entry point
+├── requirements.txt            # Python dependencies
+├── Dockerfile
+├── docker-compose.yml
+│
+├── engines/
+│   ├── portfolio_builder.py    # Portfolio construction logic
+│   ├── risk_parity.py          # Risk parity allocation engine
+│   ├── backtester.py           # Backtest simulation
+│   ├── optimizer.py            # Portfolio optimization (efficient frontier)
+│   ├── metrics.py              # Performance metrics
+│   ├── advanced_analytics.py   # Monte Carlo, VaR, rolling metrics
+│   ├── hedging.py              # Rule-based hedge recommendations
+│   ├── diversification.py      # Allocation analysis, correlations
+│   ├── stress.py               # Stress test scenarios
+│   ├── regime_detector.py      # Market regime detection (VIX/SMA)
+│   └── regime_tilts.py         # Regime-based portfolio tilts
+│
+├── services/
+│   ├── data_client.py          # Yahoo Finance wrapper with caching
+│   ├── universe.py             # ETF universe loader
+│   ├── sentiment_client.py     # Fear & Greed, analyst ratings
+│   └── pdf_processor.py        # PDF text extraction
+│
+├── domain/
+│   └── schemas.py              # Pydantic models for all data types
+│
+├── ui/
+│   ├── layouts.py              # Dash tab layouts
+│   ├── callbacks.py            # Dash callback handlers
+│   └── charts.py               # Plotly chart builders
+│
+├── data/
+│   ├── etf_universe.py         # 100+ ETF definitions
+│   ├── world_portfolio.py      # Default baseline allocation
+│   ├── stress_scenarios.py     # Stress test configurations
+│   └── regime_configs.py       # Regime tilt configurations
+│
+├── assets/
+│   └── themes.css              # Multi-theme stylesheets
+│
+├── tests/
+│   ├── test_metrics.py
+│   ├── test_portfolio_builder.py
+│   ├── test_backtester.py
+│   └── test_risk_parity.py
+│
+└── cache/                      # Local cache directory (gitignored)
+```
+
+## UI Tabs (Current)
+
+1. **Portfolio Builder** - Risk profile, strategy selection, tilts, constraints
+2. **Optimizer** - ETF selection, efficient frontier, optimal weights
+3. **Data Download** - Intraday/daily data fetch and CSV export
+4. **ETF Screener** - Filter by asset class, region, sector
+5. **Backtest** - Date range, rebalancing, benchmark comparison
+6. **Rebalance** - Calculate rebalancing trades
+7. **Analytics** - Performance metrics, equity curve, drawdowns
+8. **Advanced** - Monte Carlo, VaR/CVaR, rolling metrics
+9. **Diversification** - Allocation pies, correlation heatmap
+10. **Compare Strategies** - Side-by-side strategy comparison
+11. **Hedges** - Hedge recommendations
+12. **Market Regime** - Regime detection, sentiment, recommendations
+13. **Export** - CSV/JSON download
+
+## Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally
+python app.py
+# Opens at http://localhost:8050
+
+# Run with Docker
+docker compose up --build
+```
 
 End of spec.
