@@ -1,9 +1,87 @@
-"""Chart builders for Plotly visualizations."""
+"""Chart builders for Plotly visualizations - Bloomberg Style."""
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+# ============================================================================
+# Bloomberg Color Palette
+# ============================================================================
+BB_COLORS = {
+    "orange": "#FF6600",
+    "yellow": "#FFCC00",
+    "green": "#00CC66",
+    "red": "#FF3333",
+    "blue": "#3399FF",
+    "white": "#FFFFFF",
+    "black": "#000000",
+    "text": "#E0E0E0",
+    "muted": "#888888",
+    "bg": "#000000",
+    "dark": "#0A0A0A",
+    "paper": "#0A0A0A",
+    "grid": "#333333",
+}
+
+# Bloomberg-style color sequence for multiple series
+BB_COLOR_SEQUENCE = [
+    "#FF6600",  # Orange
+    "#FFCC00",  # Yellow
+    "#00CC66",  # Green
+    "#3399FF",  # Blue
+    "#FF3333",  # Red
+    "#CC99FF",  # Purple
+    "#00CCCC",  # Cyan
+    "#FF9966",  # Light orange
+    "#99FF66",  # Light green
+]
+
+# Bloomberg chart layout template
+BB_LAYOUT = dict(
+    paper_bgcolor=BB_COLORS["bg"],
+    plot_bgcolor=BB_COLORS["bg"],
+    font=dict(
+        family="Consolas, Monaco, monospace",
+        size=12,
+        color=BB_COLORS["text"],
+    ),
+    title=dict(
+        font=dict(
+            size=14,
+            color=BB_COLORS["orange"],
+        ),
+        x=0,
+        xanchor="left",
+    ),
+    xaxis=dict(
+        gridcolor=BB_COLORS["grid"],
+        linecolor=BB_COLORS["grid"],
+        tickfont=dict(color=BB_COLORS["muted"]),
+        title_font=dict(color=BB_COLORS["text"]),
+    ),
+    yaxis=dict(
+        gridcolor=BB_COLORS["grid"],
+        linecolor=BB_COLORS["grid"],
+        tickfont=dict(color=BB_COLORS["muted"]),
+        title_font=dict(color=BB_COLORS["text"]),
+    ),
+    legend=dict(
+        bgcolor="rgba(0,0,0,0)",
+        font=dict(color=BB_COLORS["text"]),
+    ),
+    hoverlabel=dict(
+        bgcolor=BB_COLORS["paper"],
+        font_size=12,
+        font_family="Consolas, monospace",
+    ),
+)
+
+
+def apply_bb_layout(fig: go.Figure) -> go.Figure:
+    """Apply Bloomberg-style layout to a figure."""
+    fig.update_layout(**BB_LAYOUT)
+    return fig
 
 
 def create_equity_curve_chart(
@@ -20,7 +98,7 @@ def create_equity_curve_chart(
         y=df["portfolio_value"],
         mode="lines",
         name="Portfolio",
-        line=dict(color="#2E86AB", width=2),
+        line=dict(color=BB_COLORS["orange"], width=2),
     ))
 
     if "benchmark_value" in df.columns:
@@ -29,7 +107,7 @@ def create_equity_curve_chart(
             y=df["benchmark_value"],
             mode="lines",
             name="Benchmark",
-            line=dict(color="#A23B72", width=2, dash="dash"),
+            line=dict(color=BB_COLORS["yellow"], width=2, dash="dash"),
         ))
 
     fig.update_layout(
@@ -41,7 +119,7 @@ def create_equity_curve_chart(
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_drawdown_chart(
@@ -59,8 +137,8 @@ def create_drawdown_chart(
         mode="lines",
         fill="tozeroy",
         name="Drawdown",
-        line=dict(color="#E74C3C", width=1),
-        fillcolor="rgba(231, 76, 60, 0.3)",
+        line=dict(color=BB_COLORS["red"], width=1),
+        fillcolor="rgba(255, 51, 51, 0.3)",
     ))
 
     fig.update_layout(
@@ -71,7 +149,7 @@ def create_drawdown_chart(
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_allocation_pie(
@@ -82,15 +160,14 @@ def create_allocation_pie(
     labels = list(allocation_data.keys())
     values = list(allocation_data.values())
 
-    colors = px.colors.qualitative.Set2
-
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
         hole=0.4,
-        marker_colors=colors[:len(labels)],
+        marker_colors=BB_COLOR_SEQUENCE[:len(labels)],
         textinfo="label+percent",
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
     )])
 
     fig.update_layout(
@@ -100,7 +177,7 @@ def create_allocation_pie(
         legend=dict(orientation="h", yanchor="bottom", y=-0.2),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_holdings_bar(
@@ -118,9 +195,10 @@ def create_holdings_bar(
         x=weights,
         y=tickers,
         orientation="h",
-        marker_color="#2E86AB",
+        marker_color=BB_COLORS["orange"],
         text=[f"{w:.1%}" for w in weights],
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
     )])
 
     fig.update_layout(
@@ -132,7 +210,7 @@ def create_holdings_bar(
         height=max(300, len(holdings) * 30),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_correlation_heatmap(
@@ -140,16 +218,23 @@ def create_correlation_heatmap(
     title: str = "Correlation Matrix",
 ) -> go.Figure:
     """Create correlation heatmap."""
+    # Bloomberg-style colorscale: red (negative) -> black (zero) -> green (positive)
+    bb_colorscale = [
+        [0, BB_COLORS["red"]],
+        [0.5, "#1a1a1a"],
+        [1, BB_COLORS["green"]],
+    ]
+
     fig = go.Figure(data=go.Heatmap(
         z=corr_matrix.values,
         x=corr_matrix.columns.tolist(),
         y=corr_matrix.index.tolist(),
-        colorscale="RdBu_r",
+        colorscale=bb_colorscale,
         zmin=-1,
         zmax=1,
         text=corr_matrix.round(2).values,
         texttemplate="%{text}",
-        textfont={"size": 10},
+        textfont={"size": 10, "color": BB_COLORS["text"]},
         hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlation: %{z:.3f}<extra></extra>",
     ))
 
@@ -159,7 +244,7 @@ def create_correlation_heatmap(
         height=max(400, len(corr_matrix) * 50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_stress_test_bars(
@@ -178,7 +263,7 @@ def create_stress_test_bars(
         x=portfolio_impacts,
         orientation="h",
         name="Portfolio",
-        marker_color="#2E86AB",
+        marker_color=BB_COLORS["orange"],
     ))
 
     fig.add_trace(go.Bar(
@@ -186,7 +271,7 @@ def create_stress_test_bars(
         x=benchmark_impacts,
         orientation="h",
         name="Benchmark",
-        marker_color="#A23B72",
+        marker_color=BB_COLORS["yellow"],
     ))
 
     fig.update_layout(
@@ -199,7 +284,7 @@ def create_stress_test_bars(
         height=max(300, len(scenarios) * 50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_metrics_cards(metrics: dict) -> list[dict]:
@@ -259,7 +344,7 @@ def create_rolling_chart(
         y=portfolio_values,
         mode="lines",
         name="Portfolio",
-        line=dict(color="#2E86AB", width=2),
+        line=dict(color=BB_COLORS["orange"], width=2),
     ))
 
     if benchmark_values:
@@ -268,7 +353,7 @@ def create_rolling_chart(
             y=benchmark_values,
             mode="lines",
             name="Benchmark",
-            line=dict(color="#A23B72", width=2, dash="dash"),
+            line=dict(color=BB_COLORS["yellow"], width=2, dash="dash"),
         ))
 
     fig.update_layout(
@@ -280,7 +365,7 @@ def create_rolling_chart(
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_comparison_equity_chart(
@@ -290,17 +375,11 @@ def create_comparison_equity_chart(
     """Create overlay chart of multiple strategy equity curves."""
     fig = go.Figure()
 
-    # Color palette for strategies
-    colors = [
-        "#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3B1F2B",
-        "#44AF69", "#FCAB10", "#2D3047", "#93B7BE",
-    ]
-
     for i, (strategy_name, equity_data) in enumerate(strategy_curves.items()):
         if not equity_data:
             continue
         df = pd.DataFrame(equity_data)
-        color = colors[i % len(colors)]
+        color = BB_COLOR_SEQUENCE[i % len(BB_COLOR_SEQUENCE)]
 
         fig.add_trace(go.Scatter(
             x=df["date"],
@@ -320,13 +399,13 @@ def create_comparison_equity_chart(
             y=0.99,
             xanchor="left",
             x=0.01,
-            bgcolor="rgba(255,255,255,0.8)",
+            bgcolor="rgba(0,0,0,0.8)",
         ),
         margin=dict(l=50, r=30, t=50, b=50),
         yaxis_tickformat="$,.0f",
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_comparison_drawdown_chart(
@@ -336,17 +415,11 @@ def create_comparison_drawdown_chart(
     """Create overlay chart of multiple strategy drawdowns."""
     fig = go.Figure()
 
-    # Color palette for strategies
-    colors = [
-        "#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3B1F2B",
-        "#44AF69", "#FCAB10", "#2D3047", "#93B7BE",
-    ]
-
     for i, (strategy_name, drawdown_data) in enumerate(strategy_drawdowns.items()):
         if not drawdown_data:
             continue
         df = pd.DataFrame(drawdown_data)
-        color = colors[i % len(colors)]
+        color = BB_COLOR_SEQUENCE[i % len(BB_COLOR_SEQUENCE)]
 
         fig.add_trace(go.Scatter(
             x=df["date"],
@@ -367,18 +440,19 @@ def create_comparison_drawdown_chart(
             y=0.99,
             xanchor="left",
             x=0.01,
-            bgcolor="rgba(255,255,255,0.8)",
+            bgcolor="rgba(0,0,0,0.8)",
         ),
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_hedge_recommendations_table(recommendations: list[dict]) -> go.Figure:
     """Create table figure for hedge recommendations."""
     if not recommendations:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     headers = ["Instrument", "Risk Targeted", "Suggested Weight", "Rationale"]
 
@@ -393,16 +467,17 @@ def create_hedge_recommendations_table(recommendations: list[dict]) -> go.Figure
     fig = go.Figure(data=[go.Table(
         header=dict(
             values=headers,
-            fill_color="#2E86AB",
-            font=dict(color="white", size=12),
+            fill_color=BB_COLORS["orange"],
+            font=dict(color=BB_COLORS["black"], size=12, family="Consolas, monospace"),
             align="left",
         ),
         cells=dict(
             values=cells,
-            fill_color="white",
-            font=dict(size=11),
+            fill_color=BB_COLORS["dark"],
+            font=dict(size=11, color=BB_COLORS["text"], family="Consolas, monospace"),
             align="left",
             height=30,
+            line_color=BB_COLORS["grid"],
         ),
     )])
 
@@ -411,7 +486,7 @@ def create_hedge_recommendations_table(recommendations: list[dict]) -> go.Figure
         height=max(200, len(recommendations) * 40 + 50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_monte_carlo_chart(
@@ -420,7 +495,8 @@ def create_monte_carlo_chart(
 ) -> go.Figure:
     """Create Monte Carlo simulation fan chart."""
     if "error" in simulation_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     dates = simulation_data.get("dates", [])
     paths = simulation_data.get("paths_sampled", {})
@@ -433,7 +509,7 @@ def create_monte_carlo_chart(
             x=dates + dates[::-1],
             y=paths["p95"] + paths["p5"][::-1],
             fill="toself",
-            fillcolor="rgba(46, 134, 171, 0.1)",
+            fillcolor="rgba(255, 102, 0, 0.1)",
             line=dict(color="rgba(0,0,0,0)"),
             name="5th-95th Percentile",
             showlegend=True,
@@ -444,7 +520,7 @@ def create_monte_carlo_chart(
             x=dates + dates[::-1],
             y=paths["p75"] + paths["p25"][::-1],
             fill="toself",
-            fillcolor="rgba(46, 134, 171, 0.2)",
+            fillcolor="rgba(255, 102, 0, 0.2)",
             line=dict(color="rgba(0,0,0,0)"),
             name="25th-75th Percentile",
             showlegend=True,
@@ -457,13 +533,13 @@ def create_monte_carlo_chart(
             y=paths["p50"],
             mode="lines",
             name="Median (50th)",
-            line=dict(color="#2E86AB", width=3),
+            line=dict(color=BB_COLORS["orange"], width=3),
         ))
 
     # Add percentile lines
     percentile_styles = {
-        "p5": {"color": "#E74C3C", "dash": "dot", "name": "5th Percentile"},
-        "p95": {"color": "#27AE60", "dash": "dot", "name": "95th Percentile"},
+        "p5": {"color": BB_COLORS["red"], "dash": "dot", "name": "5th Percentile"},
+        "p95": {"color": BB_COLORS["green"], "dash": "dot", "name": "95th Percentile"},
     }
 
     for key, style in percentile_styles.items():
@@ -486,7 +562,7 @@ def create_monte_carlo_chart(
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_rolling_returns_chart(
@@ -495,14 +571,13 @@ def create_rolling_returns_chart(
 ) -> go.Figure:
     """Create rolling returns line chart."""
     if "error" in rolling_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     dates = rolling_data.get("dates", [])
     rolling_returns = rolling_data.get("rolling_returns", {})
 
     fig = go.Figure()
-
-    colors = ["#2E86AB", "#A23B72", "#F18F01"]
 
     for i, (window, values) in enumerate(rolling_returns.items()):
         # Align dates with values
@@ -513,11 +588,11 @@ def create_rolling_returns_chart(
             y=values,
             mode="lines",
             name=f"{window} Rolling",
-            line=dict(color=colors[i % len(colors)], width=2),
+            line=dict(color=BB_COLOR_SEQUENCE[i % len(BB_COLOR_SEQUENCE)], width=2),
         ))
 
     # Add zero line
-    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+    fig.add_hline(y=0, line_dash="dash", line_color=BB_COLORS["muted"], opacity=0.5)
 
     fig.update_layout(
         title=title,
@@ -529,7 +604,7 @@ def create_rolling_returns_chart(
         margin=dict(l=50, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_calendar_heatmap(
@@ -538,13 +613,15 @@ def create_calendar_heatmap(
 ) -> go.Figure:
     """Create calendar returns heatmap."""
     if "error" in calendar_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     heatmap_data = calendar_data.get("heatmap_data", [])
     months = calendar_data.get("months", [])
 
     if not heatmap_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     # Build z matrix
     years = [d["year"] for d in heatmap_data]
@@ -565,23 +642,26 @@ def create_calendar_heatmap(
         z.append(row_values)
         text.append(row_text)
 
+    # Bloomberg colorscale: red -> black -> green
     fig = go.Figure(data=go.Heatmap(
         z=z,
         x=months,
         y=years,
         colorscale=[
-            [0, "#E74C3C"],      # Red for negative
-            [0.5, "#FFFFFF"],    # White for zero
-            [1, "#27AE60"],      # Green for positive
+            [0, BB_COLORS["red"]],
+            [0.5, "#1a1a1a"],
+            [1, BB_COLORS["green"]],
         ],
         zmid=0,
         text=text,
         texttemplate="%{text}",
-        textfont={"size": 10},
+        textfont={"size": 10, "color": BB_COLORS["text"]},
         hovertemplate="<b>%{y} %{x}</b><br>Return: %{z:.2%}<extra></extra>",
         colorbar=dict(
             title="Return",
             tickformat=".0%",
+            tickfont=dict(color=BB_COLORS["text"]),
+            titlefont=dict(color=BB_COLORS["text"]),
         ),
     ))
 
@@ -594,7 +674,7 @@ def create_calendar_heatmap(
         height=max(300, len(years) * 35),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_contribution_chart(
@@ -603,16 +683,18 @@ def create_contribution_chart(
 ) -> go.Figure:
     """Create contribution waterfall/bar chart."""
     if "error" in contribution_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     contributions = contribution_data.get("contributions", [])
 
     if not contributions:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     tickers = [c["ticker"] for c in contributions]
     values = [c["contribution"] for c in contributions]
-    colors = ["#27AE60" if v >= 0 else "#E74C3C" for v in values]
+    colors = [BB_COLORS["green"] if v >= 0 else BB_COLORS["red"] for v in values]
 
     fig = go.Figure(data=[go.Bar(
         x=tickers,
@@ -620,9 +702,10 @@ def create_contribution_chart(
         marker_color=colors,
         text=[f"{v:.1%}" for v in values],
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
     )])
 
-    fig.add_hline(y=0, line_dash="solid", line_color="black", opacity=0.3)
+    fig.add_hline(y=0, line_dash="solid", line_color=BB_COLORS["muted"], opacity=0.5)
 
     fig.update_layout(
         title=title,
@@ -633,7 +716,7 @@ def create_contribution_chart(
         height=400,
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_yield_chart(
@@ -642,18 +725,21 @@ def create_yield_chart(
 ) -> go.Figure:
     """Create dividend yield breakdown chart."""
     if "error" in dividend_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     holdings = dividend_data.get("holdings_yield", [])
 
     if not holdings:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     # Filter to non-zero yields
     holdings = [h for h in holdings if h["yield"] > 0]
 
     if not holdings:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     tickers = [h["ticker"] for h in holdings]
     yields = [h["yield"] for h in holdings]
@@ -669,9 +755,10 @@ def create_yield_chart(
     fig.add_trace(go.Bar(
         x=tickers,
         y=yields,
-        marker_color="#2E86AB",
+        marker_color=BB_COLORS["orange"],
         text=[f"{y:.1%}" for y in yields],
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
         name="Yield",
     ), row=1, col=1)
 
@@ -679,9 +766,10 @@ def create_yield_chart(
     fig.add_trace(go.Bar(
         x=tickers,
         y=contributions,
-        marker_color="#A23B72",
+        marker_color=BB_COLORS["yellow"],
         text=[f"{c:.2%}" for c in contributions],
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
         name="Contribution",
     ), row=1, col=2)
 
@@ -695,7 +783,10 @@ def create_yield_chart(
     fig.update_yaxes(tickformat=".1%", row=1, col=1)
     fig.update_yaxes(tickformat=".2%", row=1, col=2)
 
-    return fig
+    # Update subplot title colors
+    fig.update_annotations(font=dict(color=BB_COLORS["orange"]))
+
+    return apply_bb_layout(fig)
 
 
 # ============================================================================
@@ -727,6 +818,13 @@ def create_efficient_frontier_chart(
     """
     fig = go.Figure()
 
+    # Bloomberg-style colorscale for Sharpe ratio
+    bb_sharpe_colorscale = [
+        [0, BB_COLORS["red"]],
+        [0.5, BB_COLORS["yellow"]],
+        [1, BB_COLORS["green"]],
+    ]
+
     # All portfolios as background scatter
     if all_portfolios:
         vols = [p["volatility"] for p in all_portfolios]
@@ -741,10 +839,15 @@ def create_efficient_frontier_chart(
             marker=dict(
                 size=6,
                 color=sharpes,
-                colorscale="Viridis",
-                colorbar=dict(title="Sharpe", x=1.02),
+                colorscale=bb_sharpe_colorscale,
+                colorbar=dict(
+                    title="Sharpe",
+                    x=1.02,
+                    tickfont=dict(color=BB_COLORS["text"]),
+                    titlefont=dict(color=BB_COLORS["text"]),
+                ),
                 showscale=True,
-                opacity=0.6,
+                opacity=0.7,
             ),
             hovertemplate=(
                 "<b>Volatility:</b> %{x:.2%}<br>"
@@ -763,8 +866,8 @@ def create_efficient_frontier_chart(
             y=frontier_returns,
             mode="lines+markers",
             name="Efficient Frontier",
-            marker=dict(size=8, color="#E74C3C"),
-            line=dict(color="#E74C3C", width=2),
+            marker=dict(size=8, color=BB_COLORS["orange"]),
+            line=dict(color=BB_COLORS["orange"], width=2),
             hovertemplate=(
                 "<b>Frontier Point</b><br>"
                 "<b>Volatility:</b> %{x:.2%}<br>"
@@ -781,9 +884,9 @@ def create_efficient_frontier_chart(
             name="Optimal Portfolio",
             marker=dict(
                 size=20,
-                color="#F18F01",
+                color=BB_COLORS["yellow"],
                 symbol="star",
-                line=dict(width=2, color="white"),
+                line=dict(width=2, color=BB_COLORS["black"]),
             ),
             hovertemplate=(
                 "<b>OPTIMAL</b><br>"
@@ -803,7 +906,7 @@ def create_efficient_frontier_chart(
         margin=dict(l=60, r=80, t=50, b=60),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_optimal_weights_chart(
@@ -824,20 +927,20 @@ def create_optimal_weights_chart(
     filtered = {k: v for k, v in weights.items() if v > 0.001}
 
     if not filtered:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     labels = list(filtered.keys())
     values = list(filtered.values())
-
-    colors = px.colors.qualitative.Set2
 
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
         hole=0.4,
-        marker_colors=colors[:len(labels)],
+        marker_colors=BB_COLOR_SEQUENCE[:len(labels)],
         textinfo="label+percent",
         textposition="outside",
+        textfont=dict(color=BB_COLORS["text"]),
         hovertemplate="<b>%{label}</b><br>Weight: %{value:.1%}<extra></extra>",
     )])
 
@@ -848,7 +951,7 @@ def create_optimal_weights_chart(
         legend=dict(orientation="h", yanchor="bottom", y=-0.2),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_optimizer_comparison_chart(
@@ -866,7 +969,8 @@ def create_optimizer_comparison_chart(
         Plotly figure
     """
     if not equity_data:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     df = pd.DataFrame(equity_data)
 
@@ -878,7 +982,7 @@ def create_optimizer_comparison_chart(
         y=df["portfolio_value"],
         mode="lines",
         name="Optimal Portfolio",
-        line=dict(color="#27AE60", width=2),
+        line=dict(color=BB_COLORS["green"], width=2),
     ))
 
     # Benchmark
@@ -888,7 +992,7 @@ def create_optimizer_comparison_chart(
             y=df["benchmark_value"],
             mode="lines",
             name="Benchmark (SPY)",
-            line=dict(color="#A23B72", width=2, dash="dash"),
+            line=dict(color=BB_COLORS["yellow"], width=2, dash="dash"),
         ))
 
     fig.update_layout(
@@ -901,7 +1005,7 @@ def create_optimizer_comparison_chart(
         margin=dict(l=60, r=30, t=50, b=50),
     )
 
-    return fig
+    return apply_bb_layout(fig)
 
 
 def create_optimization_scatter_matrix(
@@ -919,15 +1023,23 @@ def create_optimization_scatter_matrix(
         Plotly figure
     """
     if not portfolios:
-        return go.Figure()
+        fig = go.Figure()
+        return apply_bb_layout(fig)
 
     df = pd.DataFrame(portfolios)
+
+    # Bloomberg-style colorscale
+    bb_sharpe_colorscale = [
+        [0, BB_COLORS["red"]],
+        [0.5, BB_COLORS["yellow"]],
+        [1, BB_COLORS["green"]],
+    ]
 
     fig = px.scatter_matrix(
         df,
         dimensions=["volatility", "cagr", "sharpe_ratio", "max_drawdown"],
         color="sharpe_ratio",
-        color_continuous_scale="Viridis",
+        color_continuous_scale=bb_sharpe_colorscale,
         title=title,
         labels={
             "volatility": "Vol",
@@ -944,4 +1056,4 @@ def create_optimization_scatter_matrix(
 
     fig.update_traces(diagonal_visible=False)
 
-    return fig
+    return apply_bb_layout(fig)

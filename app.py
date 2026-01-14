@@ -6,11 +6,11 @@ import dash_bootstrap_components as dbc
 from ui.callbacks import register_callbacks
 from ui.layouts import create_app_layout
 
-# Initialize the Dash app
+# Initialize the Dash app with Bloomberg-style dark theme
 app = dash.Dash(
     __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
-    title="ETF Portfolio Tool",
+    external_stylesheets=[dbc.themes.CYBORG],  # Dark base theme
+    title="ETF Portfolio Tool | Bloomberg Style",
     suppress_callback_exceptions=True,
 )
 

@@ -1,0 +1,997 @@
+/* ============================================
+   ETF PORTFOLIO TOOL - MULTI-THEME STYLESHEET
+   ============================================
+   Available themes: light, dark, bloomberg, modern
+   Apply by adding class to body: <body class="theme-bloomberg">
+   ============================================ */
+
+/* ============================================
+   BASE STYLES (applies to all themes)
+   ============================================ */
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.theme-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.theme-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ============================================
+   THEME: LIGHT (Default Bootstrap-like)
+   ============================================ */
+body.theme-light {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+}
+
+body.theme-light .card {
+    background-color: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+body.theme-light .card-header {
+    background-color: #f8f9fa !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    color: #212529 !important;
+}
+
+body.theme-light .nav-tabs .nav-link {
+    color: #495057 !important;
+    background-color: transparent !important;
+}
+
+body.theme-light .nav-tabs .nav-link.active {
+    color: #ffffff !important;
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+}
+
+body.theme-light .btn-primary {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+}
+
+body.theme-light .btn-success {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+}
+
+body.theme-light .table thead th {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+}
+
+body.theme-light .table tbody td {
+    background-color: #ffffff !important;
+    color: #212529 !important;
+}
+
+body.theme-light label {
+    color: #212529 !important;
+}
+
+body.theme-light .text-muted {
+    color: #6c757d !important;
+}
+
+body.theme-light h1,
+body.theme-light h2,
+body.theme-light h3,
+body.theme-light h4,
+body.theme-light h5 {
+    color: #212529 !important;
+}
+
+body.theme-light .form-control,
+body.theme-light input {
+    background-color: #ffffff !important;
+    border: 1px solid #ced4da !important;
+    color: #212529 !important;
+}
+
+body.theme-light .alert-info {
+    background-color: #cff4fc !important;
+    border-color: #9eeaf9 !important;
+    color: #055160 !important;
+}
+
+body.theme-light .alert-success {
+    background-color: #d1e7dd !important;
+    border-color: #a3cfbb !important;
+    color: #0a3622 !important;
+}
+
+body.theme-light .alert-warning {
+    background-color: #fff3cd !important;
+    border-color: #ffe69c !important;
+    color: #664d03 !important;
+}
+
+body.theme-light .alert-danger {
+    background-color: #f8d7da !important;
+    border-color: #f1aeb5 !important;
+    color: #58151c !important;
+}
+
+/* ============================================
+   THEME: DARK (Simple dark mode)
+   ============================================ */
+body.theme-dark {
+    background-color: #1a1a2e !important;
+    color: #eaeaea !important;
+}
+
+body.theme-dark .card {
+    background-color: #16213e !important;
+    border: 1px solid #0f3460 !important;
+}
+
+body.theme-dark .card-header {
+    background-color: #0f3460 !important;
+    border-bottom: 1px solid #0f3460 !important;
+    color: #e94560 !important;
+}
+
+body.theme-dark .card-body {
+    background-color: #16213e !important;
+}
+
+body.theme-dark .nav-tabs {
+    border-bottom: 1px solid #0f3460 !important;
+}
+
+body.theme-dark .nav-tabs .nav-link {
+    color: #aaaaaa !important;
+    background-color: #1a1a2e !important;
+    border: 1px solid #0f3460 !important;
+}
+
+body.theme-dark .nav-tabs .nav-link.active {
+    color: #ffffff !important;
+    background-color: #e94560 !important;
+    border-color: #e94560 !important;
+}
+
+body.theme-dark .btn-primary {
+    background-color: #e94560 !important;
+    border-color: #e94560 !important;
+    color: #ffffff !important;
+}
+
+body.theme-dark .btn-success {
+    background-color: #00bf63 !important;
+    border-color: #00bf63 !important;
+}
+
+body.theme-dark .table thead th {
+    background-color: #0f3460 !important;
+    color: #e94560 !important;
+    border-color: #0f3460 !important;
+}
+
+body.theme-dark .table tbody td {
+    background-color: #16213e !important;
+    color: #eaeaea !important;
+    border-color: #0f3460 !important;
+}
+
+body.theme-dark label {
+    color: #e94560 !important;
+}
+
+body.theme-dark .text-muted {
+    color: #888888 !important;
+}
+
+body.theme-dark h1,
+body.theme-dark h2,
+body.theme-dark h3,
+body.theme-dark h4,
+body.theme-dark h5 {
+    color: #e94560 !important;
+}
+
+body.theme-dark .form-control,
+body.theme-dark input {
+    background-color: #0f3460 !important;
+    border: 1px solid #16213e !important;
+    color: #eaeaea !important;
+}
+
+body.theme-dark .alert {
+    border-left-width: 4px !important;
+}
+
+body.theme-dark .alert-info {
+    background-color: rgba(233, 69, 96, 0.1) !important;
+    border-color: #e94560 !important;
+    color: #e94560 !important;
+}
+
+body.theme-dark .alert-success {
+    background-color: rgba(0, 191, 99, 0.1) !important;
+    border-color: #00bf63 !important;
+    color: #00bf63 !important;
+}
+
+body.theme-dark hr {
+    border-color: #0f3460 !important;
+}
+
+/* ============================================
+   THEME: BLOOMBERG (Terminal style)
+   ============================================ */
+body.theme-bloomberg {
+    background-color: #000000 !important;
+    color: #e0e0e0 !important;
+    font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace !important;
+    font-size: 13px;
+}
+
+body.theme-bloomberg .container-fluid {
+    background-color: #000000;
+}
+
+body.theme-bloomberg h1,
+body.theme-bloomberg h2,
+body.theme-bloomberg h3,
+body.theme-bloomberg h4,
+body.theme-bloomberg h5,
+body.theme-bloomberg h6 {
+    color: #ff6600 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+body.theme-bloomberg h1 {
+    font-size: 1.5rem !important;
+    border-bottom: 2px solid #ff6600;
+    padding-bottom: 10px;
+}
+
+body.theme-bloomberg .card {
+    background-color: #0a0a0a !important;
+    border: 1px solid #333333 !important;
+    border-radius: 0 !important;
+}
+
+body.theme-bloomberg .card-header {
+    background-color: #1a1a1a !important;
+    border-bottom: 1px solid #ff6600 !important;
+    color: #ff6600 !important;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 1px;
+    padding: 8px 12px !important;
+}
+
+body.theme-bloomberg .card-body {
+    background-color: #0a0a0a;
+}
+
+body.theme-bloomberg .nav-tabs {
+    border-bottom: 1px solid #333333 !important;
+    background-color: #000000;
+}
+
+body.theme-bloomberg .nav-tabs .nav-link {
+    color: #888888 !important;
+    background-color: #0a0a0a !important;
+    border: 1px solid #333333 !important;
+    border-bottom: none !important;
+    border-radius: 0 !important;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 8px 16px !important;
+    margin-right: 2px;
+}
+
+body.theme-bloomberg .nav-tabs .nav-link:hover {
+    color: #ff6600 !important;
+    background-color: #1a1a1a !important;
+}
+
+body.theme-bloomberg .nav-tabs .nav-link.active {
+    color: #000000 !important;
+    background-color: #ff6600 !important;
+    border-color: #ff6600 !important;
+    font-weight: 600;
+}
+
+body.theme-bloomberg .btn {
+    border-radius: 0 !important;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+body.theme-bloomberg .btn-primary {
+    background-color: #ff6600 !important;
+    border-color: #ff6600 !important;
+    color: #000000 !important;
+}
+
+body.theme-bloomberg .btn-success {
+    background-color: #00cc66 !important;
+    border-color: #00cc66 !important;
+    color: #000000 !important;
+}
+
+body.theme-bloomberg .btn-warning {
+    background-color: #ffcc00 !important;
+    border-color: #ffcc00 !important;
+    color: #000000 !important;
+}
+
+body.theme-bloomberg .btn-danger {
+    background-color: #ff3333 !important;
+    border-color: #ff3333 !important;
+}
+
+body.theme-bloomberg .btn-secondary {
+    background-color: #2a2a2a !important;
+    border-color: #3a3a3a !important;
+    color: #e0e0e0 !important;
+}
+
+body.theme-bloomberg .form-control,
+body.theme-bloomberg input,
+body.theme-bloomberg textarea {
+    background-color: #1a1a1a !important;
+    border: 1px solid #333333 !important;
+    color: #e0e0e0 !important;
+    border-radius: 0 !important;
+}
+
+body.theme-bloomberg .form-control:focus,
+body.theme-bloomberg input:focus {
+    background-color: #2a2a2a !important;
+    border-color: #ff6600 !important;
+    box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.25) !important;
+}
+
+body.theme-bloomberg label {
+    color: #ff6600 !important;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+body.theme-bloomberg .text-primary {
+    color: #ff6600 !important;
+}
+
+body.theme-bloomberg .text-success {
+    color: #00cc66 !important;
+}
+
+body.theme-bloomberg .text-danger {
+    color: #ff3333 !important;
+}
+
+body.theme-bloomberg .text-warning {
+    color: #ffcc00 !important;
+}
+
+body.theme-bloomberg .text-info {
+    color: #3399ff !important;
+}
+
+body.theme-bloomberg .text-muted {
+    color: #888888 !important;
+}
+
+body.theme-bloomberg .table {
+    color: #e0e0e0 !important;
+}
+
+body.theme-bloomberg .table thead th {
+    background-color: #1a1a1a !important;
+    color: #ff6600 !important;
+    border-color: #333333 !important;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+body.theme-bloomberg .table tbody td {
+    background-color: #0a0a0a !important;
+    border-color: #333333 !important;
+    color: #e0e0e0 !important;
+}
+
+body.theme-bloomberg .table-striped tbody tr:nth-of-type(odd) td {
+    background-color: #1a1a1a !important;
+}
+
+body.theme-bloomberg .badge {
+    border-radius: 0 !important;
+    text-transform: uppercase;
+    font-size: 10px;
+}
+
+body.theme-bloomberg .badge.bg-primary {
+    background-color: #ff6600 !important;
+    color: #000000 !important;
+}
+
+body.theme-bloomberg .alert {
+    border-radius: 0 !important;
+    border-left-width: 4px !important;
+}
+
+body.theme-bloomberg .alert-success {
+    background-color: rgba(0, 204, 102, 0.1) !important;
+    border-color: #00cc66 !important;
+    color: #00cc66 !important;
+}
+
+body.theme-bloomberg .alert-danger {
+    background-color: rgba(255, 51, 51, 0.1) !important;
+    border-color: #ff3333 !important;
+    color: #ff3333 !important;
+}
+
+body.theme-bloomberg .alert-warning {
+    background-color: rgba(255, 204, 0, 0.1) !important;
+    border-color: #ffcc00 !important;
+    color: #ffcc00 !important;
+}
+
+body.theme-bloomberg .alert-info {
+    background-color: rgba(51, 153, 255, 0.1) !important;
+    border-color: #3399ff !important;
+    color: #3399ff !important;
+}
+
+body.theme-bloomberg hr {
+    border-color: #333333 !important;
+}
+
+body.theme-bloomberg .spinner-border {
+    color: #ff6600 !important;
+}
+
+body.theme-bloomberg ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+body.theme-bloomberg ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+body.theme-bloomberg ::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+}
+
+body.theme-bloomberg ::-webkit-scrollbar-thumb:hover {
+    background: #ff6600;
+}
+
+/* ============================================
+   THEME: MODERN (Clean, gradient accents)
+   ============================================ */
+body.theme-modern {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-attachment: fixed;
+    color: #2d3748 !important;
+    min-height: 100vh;
+}
+
+body.theme-modern .container-fluid {
+    background: transparent;
+}
+
+body.theme-modern h1,
+body.theme-modern h2,
+body.theme-modern h3,
+body.theme-modern h4,
+body.theme-modern h5 {
+    color: #2d3748 !important;
+    font-weight: 700 !important;
+}
+
+body.theme-modern .card {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: none !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(10px);
+}
+
+body.theme-modern .card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-bottom: none !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 12px 16px !important;
+}
+
+body.theme-modern .card-body {
+    background: transparent !important;
+}
+
+body.theme-modern .nav-tabs {
+    border-bottom: none !important;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    padding: 5px;
+}
+
+body.theme-modern .nav-tabs .nav-link {
+    color: #667eea !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 10px 20px !important;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+body.theme-modern .nav-tabs .nav-link:hover {
+    background-color: rgba(102, 126, 234, 0.1) !important;
+}
+
+body.theme-modern .nav-tabs .nav-link.active {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+body.theme-modern .btn {
+    border-radius: 8px !important;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+body.theme-modern .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+body.theme-modern .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+body.theme-modern .btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+}
+
+body.theme-modern .btn-warning {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+}
+
+body.theme-modern .form-control,
+body.theme-modern input {
+    background-color: #f7fafc !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    color: #2d3748 !important;
+    transition: all 0.3s ease;
+}
+
+body.theme-modern .form-control:focus,
+body.theme-modern input:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
+}
+
+body.theme-modern label {
+    color: #4a5568 !important;
+    font-weight: 600;
+}
+
+body.theme-modern .text-primary {
+    color: #667eea !important;
+}
+
+body.theme-modern .text-success {
+    color: #38a169 !important;
+}
+
+body.theme-modern .text-danger {
+    color: #e53e3e !important;
+}
+
+body.theme-modern .text-muted {
+    color: #718096 !important;
+}
+
+body.theme-modern .table {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+body.theme-modern .table thead th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 600;
+}
+
+body.theme-modern .table tbody td {
+    background-color: transparent !important;
+    border-color: #e2e8f0 !important;
+    color: #2d3748 !important;
+}
+
+body.theme-modern .badge {
+    border-radius: 20px !important;
+    font-weight: 600;
+    padding: 5px 12px;
+}
+
+body.theme-modern .badge.bg-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+body.theme-modern .alert {
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+body.theme-modern .alert-success {
+    background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%) !important;
+    color: #276749 !important;
+}
+
+body.theme-modern .alert-info {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
+    color: #4c51bf !important;
+}
+
+body.theme-modern hr {
+    border-color: #e2e8f0 !important;
+}
+
+body.theme-modern .spinner-border {
+    color: #667eea !important;
+}
+
+/* ============================================
+   THEME: PROFESSIONAL (Corporate look)
+   ============================================ */
+body.theme-professional {
+    background-color: #f5f7fa !important;
+    color: #1a202c !important;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+body.theme-professional h1,
+body.theme-professional h2,
+body.theme-professional h3,
+body.theme-professional h4,
+body.theme-professional h5 {
+    color: #1a365d !important;
+    font-weight: 600 !important;
+}
+
+body.theme-professional .card {
+    background-color: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.theme-professional .card-header {
+    background-color: #1a365d !important;
+    border-bottom: none !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    border-radius: 8px 8px 0 0 !important;
+}
+
+body.theme-professional .nav-tabs {
+    border-bottom: 2px solid #e2e8f0 !important;
+}
+
+body.theme-professional .nav-tabs .nav-link {
+    color: #4a5568 !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    margin-bottom: -2px;
+    font-weight: 500;
+}
+
+body.theme-professional .nav-tabs .nav-link.active {
+    color: #2b6cb0 !important;
+    background-color: transparent !important;
+    border-bottom: 2px solid #2b6cb0 !important;
+}
+
+body.theme-professional .btn-primary {
+    background-color: #2b6cb0 !important;
+    border-color: #2b6cb0 !important;
+}
+
+body.theme-professional .btn-success {
+    background-color: #2f855a !important;
+    border-color: #2f855a !important;
+}
+
+body.theme-professional .form-control,
+body.theme-professional input {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e0 !important;
+    border-radius: 4px !important;
+}
+
+body.theme-professional label {
+    color: #2d3748 !important;
+    font-weight: 500;
+}
+
+body.theme-professional .table thead th {
+    background-color: #edf2f7 !important;
+    color: #1a365d !important;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+body.theme-professional .table tbody td {
+    background-color: #ffffff !important;
+}
+
+body.theme-professional .text-primary {
+    color: #2b6cb0 !important;
+}
+
+body.theme-professional .badge.bg-primary {
+    background-color: #2b6cb0 !important;
+}
+
+body.theme-professional hr {
+    border-color: #e2e8f0 !important;
+}
+
+/* ============================================
+   DASH DROPDOWN STYLING FOR ALL THEMES
+   ============================================ */
+
+/* Light theme dropdowns */
+body.theme-light .Select-control {
+    background-color: #ffffff !important;
+    border: 1px solid #ced4da !important;
+}
+
+body.theme-light .Select-menu-outer {
+    background-color: #ffffff !important;
+    border: 1px solid #ced4da !important;
+}
+
+body.theme-light .Select-option {
+    background-color: #ffffff !important;
+    color: #212529 !important;
+}
+
+body.theme-light .Select-option:hover,
+body.theme-light .Select-option.is-focused {
+    background-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+body.theme-light .Select-value-label {
+    color: #212529 !important;
+}
+
+/* Dark theme dropdowns */
+body.theme-dark .Select-control {
+    background-color: #0f3460 !important;
+    border: 1px solid #16213e !important;
+}
+
+body.theme-dark .Select-menu-outer {
+    background-color: #0f3460 !important;
+    border: 1px solid #16213e !important;
+}
+
+body.theme-dark .Select-option {
+    background-color: #0f3460 !important;
+    color: #eaeaea !important;
+}
+
+body.theme-dark .Select-option:hover,
+body.theme-dark .Select-option.is-focused {
+    background-color: #e94560 !important;
+    color: #ffffff !important;
+}
+
+body.theme-dark .Select-value-label {
+    color: #eaeaea !important;
+}
+
+/* Bloomberg theme dropdowns */
+body.theme-bloomberg .Select-control {
+    background-color: #1a1a1a !important;
+    border: 1px solid #333333 !important;
+    border-radius: 0 !important;
+}
+
+body.theme-bloomberg .Select-menu-outer {
+    background-color: #1a1a1a !important;
+    border: 1px solid #333333 !important;
+    border-radius: 0 !important;
+}
+
+body.theme-bloomberg .Select-option {
+    background-color: #1a1a1a !important;
+    color: #e0e0e0 !important;
+}
+
+body.theme-bloomberg .Select-option:hover,
+body.theme-bloomberg .Select-option.is-focused,
+body.theme-bloomberg .Select-option.is-selected {
+    background-color: #ff6600 !important;
+    color: #000000 !important;
+}
+
+body.theme-bloomberg .Select-value-label {
+    color: #e0e0e0 !important;
+}
+
+body.theme-bloomberg .Select-arrow-zone {
+    color: #ff6600 !important;
+}
+
+/* Modern theme dropdowns */
+body.theme-modern .Select-control {
+    background-color: #f7fafc !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+}
+
+body.theme-modern .Select-menu-outer {
+    background-color: #ffffff !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.theme-modern .Select-option {
+    background-color: #ffffff !important;
+    color: #2d3748 !important;
+}
+
+body.theme-modern .Select-option:hover,
+body.theme-modern .Select-option.is-focused {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #ffffff !important;
+}
+
+body.theme-modern .Select-value-label {
+    color: #2d3748 !important;
+}
+
+/* Professional theme dropdowns */
+body.theme-professional .Select-control {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e0 !important;
+    border-radius: 4px !important;
+}
+
+body.theme-professional .Select-menu-outer {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e0 !important;
+    border-radius: 4px !important;
+}
+
+body.theme-professional .Select-option {
+    background-color: #ffffff !important;
+    color: #1a202c !important;
+}
+
+body.theme-professional .Select-option:hover,
+body.theme-professional .Select-option.is-focused {
+    background-color: #2b6cb0 !important;
+    color: #ffffff !important;
+}
+
+body.theme-professional .Select-value-label {
+    color: #1a202c !important;
+}
+
+/* ============================================
+   SLIDER STYLING FOR ALL THEMES
+   ============================================ */
+
+/* Light theme sliders */
+body.theme-light .rc-slider-track {
+    background-color: #0d6efd !important;
+}
+
+body.theme-light .rc-slider-handle {
+    border-color: #0d6efd !important;
+    background-color: #0d6efd !important;
+}
+
+body.theme-light .rc-slider-rail {
+    background-color: #dee2e6 !important;
+}
+
+/* Dark theme sliders */
+body.theme-dark .rc-slider-track {
+    background-color: #e94560 !important;
+}
+
+body.theme-dark .rc-slider-handle {
+    border-color: #e94560 !important;
+    background-color: #e94560 !important;
+}
+
+body.theme-dark .rc-slider-rail {
+    background-color: #0f3460 !important;
+}
+
+/* Bloomberg theme sliders */
+body.theme-bloomberg .rc-slider-track {
+    background-color: #ff6600 !important;
+}
+
+body.theme-bloomberg .rc-slider-handle {
+    border-color: #ff6600 !important;
+    background-color: #ff6600 !important;
+}
+
+body.theme-bloomberg .rc-slider-rail {
+    background-color: #2a2a2a !important;
+}
+
+body.theme-bloomberg .rc-slider-mark-text {
+    color: #888888 !important;
+}
+
+/* Modern theme sliders */
+body.theme-modern .rc-slider-track {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+body.theme-modern .rc-slider-handle {
+    border-color: #667eea !important;
+    background-color: #667eea !important;
+}
+
+body.theme-modern .rc-slider-rail {
+    background-color: #e2e8f0 !important;
+}
+
+/* Professional theme sliders */
+body.theme-professional .rc-slider-track {
+    background-color: #2b6cb0 !important;
+}
+
+body.theme-professional .rc-slider-handle {
+    border-color: #2b6cb0 !important;
+    background-color: #2b6cb0 !important;
+}
+
+body.theme-professional .rc-slider-rail {
+    background-color: #e2e8f0 !important;
+}

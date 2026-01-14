@@ -2221,3 +2221,45 @@ def register_callbacks(app):
         )
 
         return store_data, display, chart, feedback
+
+    # =========================================================================
+    # Theme Selector Callback (Clientside)
+    # =========================================================================
+
+    # Apply theme when selector changes
+    app.clientside_callback(
+        """
+        function(theme, storedTheme) {
+            // Use stored theme on initial load, otherwise use selected theme
+            var activeTheme = theme || storedTheme || 'theme-bloomberg';
+
+            // Remove all theme classes
+            document.body.classList.remove(
+                'theme-light', 'theme-dark', 'theme-bloomberg',
+                'theme-modern', 'theme-professional'
+            );
+
+            // Add selected theme class
+            document.body.classList.add(activeTheme);
+
+            return activeTheme;
+        }
+        """,
+        Output("theme-store", "data"),
+        Input("theme-selector", "value"),
+        State("theme-store", "data"),
+    )
+
+    # Initialize theme selector from stored value on page load
+    app.clientside_callback(
+        """
+        function(storedTheme) {
+            var theme = storedTheme || 'theme-bloomberg';
+            // Apply theme immediately on load
+            document.body.classList.add(theme);
+            return theme;
+        }
+        """,
+        Output("theme-selector", "value"),
+        Input("theme-store", "data"),
+    )

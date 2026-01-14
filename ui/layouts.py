@@ -12,13 +12,31 @@ from domain.schemas import RebalanceFrequency, RiskProfile
 def create_app_layout() -> dbc.Container:
     """Create the main application layout."""
     return dbc.Container([
-        # Header
+        # Header with theme selector
         dbc.Row([
             dbc.Col([
                 html.H1("ETF Portfolio Tool", className="text-primary mb-0"),
                 html.P("Portfolio Construction, Backtesting & Analysis",
                        className="text-muted"),
-            ]),
+            ], md=9),
+            dbc.Col([
+                html.Div([
+                    html.Label("Theme", className="theme-label me-2"),
+                    dcc.Dropdown(
+                        id="theme-selector",
+                        options=[
+                            {"label": "Bloomberg", "value": "theme-bloomberg"},
+                            {"label": "Dark", "value": "theme-dark"},
+                            {"label": "Light", "value": "theme-light"},
+                            {"label": "Modern", "value": "theme-modern"},
+                            {"label": "Professional", "value": "theme-professional"},
+                        ],
+                        value="theme-bloomberg",
+                        clearable=False,
+                        style={"width": "150px"},
+                    ),
+                ], className="theme-selector-container float-end mt-2"),
+            ], md=3),
         ], className="my-4"),
 
         # Main tabs
@@ -45,6 +63,7 @@ def create_app_layout() -> dbc.Container:
         dcc.Store(id="rebalance-store", storage_type="memory"),
         dcc.Store(id="screener-store", storage_type="memory"),
         dcc.Store(id="optimizer-store", storage_type="memory"),
+        dcc.Store(id="theme-store", storage_type="local", data="theme-bloomberg"),
 
     ], fluid=True)
 
