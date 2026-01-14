@@ -2590,7 +2590,7 @@ def register_callbacks(app):
 
         # Only update when on the regime tab
         if active_tab != "tab-regime":
-            return [no_update] * 23
+            return [no_update] * 22
 
         # Detect market regime (now includes economic data)
         regime_state = detect_regime(include_economic=True)
