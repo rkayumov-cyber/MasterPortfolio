@@ -41,6 +41,7 @@ from ui.charts import (
     create_efficient_frontier_chart,
     create_equity_curve_chart,
     create_fear_greed_gauge,
+    create_fred_combined_chart,
     create_holdings_bar,
     create_optimal_weights_chart,
     create_optimizer_comparison_chart,
@@ -2560,6 +2561,22 @@ def register_callbacks(app):
             Output("regime-state-store", "data"),
             Output("regime-badge", "children"),
             Output("regime-badge", "color"),
+            # FRED Economic Indicators outputs
+            Output("yield-curve-display", "children"),
+            Output("yield-curve-signal", "children"),
+            Output("credit-spread-display", "children"),
+            Output("credit-spread-signal", "children"),
+            Output("unemployment-display", "children"),
+            Output("unemployment-signal", "children"),
+            Output("claims-display", "children"),
+            Output("claims-signal", "children"),
+            Output("consumer-sentiment-display", "children"),
+            Output("consumer-sentiment-signal", "children"),
+            Output("fed-funds-display", "children"),
+            Output("fed-funds-signal", "children"),
+            Output("economic-signal-badge", "children"),
+            Output("economic-signal-badge", "color"),
+            Output("economic-summary", "children"),
         ],
         [
             Input("refresh-regime-btn", "n_clicks"),
@@ -2573,10 +2590,10 @@ def register_callbacks(app):
 
         # Only update when on the regime tab
         if active_tab != "tab-regime":
-            return [no_update] * 7
+            return [no_update] * 23
 
-        # Detect market regime
-        regime_state = detect_regime()
+        # Detect market regime (now includes economic data)
+        regime_state = detect_regime(include_economic=True)
 
         if regime_state is None:
             empty_fig = go.Figure()
@@ -2588,13 +2605,26 @@ def register_callbacks(app):
                 None,
                 "Error",
                 "danger",
+                # Economic indicators - default values
+                "N/A", "Data unavailable",
+                "N/A", "Data unavailable",
+                "N/A", "Data unavailable",
+                "N/A", "Data unavailable",
+                "N/A", "Data unavailable",
+                "N/A", "Data unavailable",
+                "Unknown", "secondary",
+                "Unable to fetch FRED economic data",
             )
 
         # Get regime summary
         summary = get_regime_summary(regime_state)
 
-        # Create regime gauge
-        regime_value = regime_state.score / 3  # Normalize to -1 to +1
+        # Create regime gauge - normalize score to -1 to +1
+        # With economic data, max score is ~4.5, so normalize differently
+        max_score = 4.5 if regime_state.indicators.economic else 3.0
+        regime_value = regime_state.score / max_score
+        regime_value = max(-1, min(1, regime_value))  # Clamp to [-1, 1]
+
         regime_gauge = create_regime_gauge(
             regime_value=regime_value,
             confidence=regime_state.confidence,
@@ -2650,11 +2680,12 @@ def register_callbacks(app):
                 ]),
             ], size="sm", bordered=True, className="mb-3"),
 
-            # Signals
-            html.H6("Signals", className="mt-2"),
+            # Signals (limit to technical signals only in this view)
+            html.H6("Technical Signals", className="mt-2"),
             html.Ul([
                 html.Li(signal, className="small")
                 for signal in regime_state.signals[:4]
+                if not any(kw in signal.lower() for kw in ["yield", "credit", "labor", "consumer", "fed"])
             ], className="small"),
         ])
 
@@ -2676,7 +2707,82 @@ def register_callbacks(app):
         else:
             badge_color = "warning"
 
-        # Store regime state
+        # === FRED Economic Indicators ===
+        econ = indicators.economic
+        if econ:
+            # Yield Curve
+            yield_curve_val = f"{econ.yield_curve_spread:.2f}%" if econ.yield_curve_spread is not None else "N/A"
+            yield_curve_sig = econ.yield_curve_signal or "N/A"
+            yield_curve_class = _get_signal_class(econ.yield_curve_signal)
+
+            # Credit Spreads
+            if econ.credit_spread_ig is not None or econ.credit_spread_hy is not None:
+                ig_str = f"IG: {econ.credit_spread_ig:.0f}" if econ.credit_spread_ig else ""
+                hy_str = f"HY: {econ.credit_spread_hy:.0f}" if econ.credit_spread_hy else ""
+                credit_val = f"{ig_str} {hy_str}".strip()
+            else:
+                credit_val = "N/A"
+            credit_sig = econ.credit_signal or "N/A"
+            credit_class = _get_signal_class(econ.credit_signal)
+
+            # Unemployment
+            unemp_val = f"{econ.unemployment_rate:.1f}%" if econ.unemployment_rate is not None else "N/A"
+            unemp_sig = econ.labor_signal or "N/A"
+            unemp_class = _get_signal_class(econ.labor_signal)
+
+            # Initial Claims
+            claims_val = f"{econ.initial_claims:,}" if econ.initial_claims is not None else "N/A"
+            claims_sig = econ.labor_signal or "N/A"
+
+            # Consumer Sentiment
+            sentiment_val = f"{econ.consumer_sentiment:.0f}" if econ.consumer_sentiment is not None else "N/A"
+            sentiment_sig = econ.sentiment_signal or "N/A"
+            sentiment_class = _get_signal_class(econ.sentiment_signal)
+
+            # Fed Funds
+            fed_val = f"{econ.fed_funds_rate:.2f}%" if econ.fed_funds_rate is not None else "N/A"
+            fed_sig = econ.fed_stance or "N/A"
+
+            # Economic signal badge
+            econ_score = econ.economic_score
+            if econ_score > 0.5:
+                econ_badge = "Bullish"
+                econ_badge_color = "success"
+            elif econ_score < -0.5:
+                econ_badge = "Bearish"
+                econ_badge_color = "danger"
+            else:
+                econ_badge = "Neutral"
+                econ_badge_color = "warning"
+
+            # Economic summary
+            econ_signals = econ.economic_signals[:3] if econ.economic_signals else []
+            econ_summary = html.Div([
+                html.Span(f"Economic Score: {econ_score:+.2f} | ", className="fw-bold"),
+                html.Span(" | ".join(econ_signals) if econ_signals else "No significant signals"),
+            ])
+        else:
+            # Fallback values when no economic data
+            yield_curve_val = "N/A"
+            yield_curve_sig = "No FRED API key"
+            credit_val = "N/A"
+            credit_sig = "Set FRED_API_KEY"
+            unemp_val = "N/A"
+            unemp_sig = "in environment"
+            claims_val = "N/A"
+            claims_sig = ""
+            sentiment_val = "N/A"
+            sentiment_sig = ""
+            fed_val = "N/A"
+            fed_sig = ""
+            econ_badge = "No Data"
+            econ_badge_color = "secondary"
+            econ_summary = html.Span(
+                "Set FRED_API_KEY environment variable to enable economic indicators",
+                className="text-muted",
+            )
+
+        # Store regime state (include economic data)
         store_data = {
             "regime": regime_state.regime.value,
             "confidence": regime_state.confidence,
@@ -2688,6 +2794,15 @@ def register_callbacks(app):
                 "spy_vs_200sma": indicators.spy_vs_200sma,
                 "spy_vs_50sma": indicators.spy_vs_50sma,
             },
+            "economic": {
+                "yield_curve_spread": econ.yield_curve_spread if econ else None,
+                "credit_spread_ig": econ.credit_spread_ig if econ else None,
+                "credit_spread_hy": econ.credit_spread_hy if econ else None,
+                "unemployment_rate": econ.unemployment_rate if econ else None,
+                "consumer_sentiment": econ.consumer_sentiment if econ else None,
+                "fed_funds_rate": econ.fed_funds_rate if econ else None,
+                "economic_score": econ.economic_score if econ else 0,
+            } if econ else None,
         }
 
         return (
@@ -2698,7 +2813,111 @@ def register_callbacks(app):
             store_data,
             regime_state.regime.value,
             badge_color,
+            # Economic indicators
+            yield_curve_val,
+            yield_curve_sig,
+            credit_val,
+            credit_sig,
+            unemp_val,
+            unemp_sig,
+            claims_val,
+            claims_sig,
+            sentiment_val,
+            sentiment_sig,
+            fed_val,
+            fed_sig,
+            econ_badge,
+            econ_badge_color,
+            econ_summary,
         )
+
+    def _get_signal_class(signal: str) -> str:
+        """Get CSS class for signal badge."""
+        if signal in ("bullish", "Bullish"):
+            return "text-success"
+        elif signal in ("bearish", "Bearish"):
+            return "text-danger"
+        elif signal in ("cautious", "Cautious"):
+            return "text-warning"
+        return "text-muted"
+
+    @app.callback(
+        Output("fred-charts-collapse", "is_open"),
+        Output("toggle-fred-charts-btn", "children"),
+        Input("toggle-fred-charts-btn", "n_clicks"),
+        State("fred-charts-collapse", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_fred_charts(n_clicks, is_open):
+        """Toggle the FRED historical charts section."""
+        new_state = not is_open
+        if new_state:
+            btn_content = [
+                html.I(className="bi bi-graph-up me-2"),
+                "Hide Historical Charts",
+            ]
+        else:
+            btn_content = [
+                html.I(className="bi bi-graph-up me-2"),
+                "Show Historical Charts",
+            ]
+        return new_state, btn_content
+
+    @app.callback(
+        Output("fred-combined-chart", "figure"),
+        Input("fred-charts-collapse", "is_open"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def update_fred_charts(is_open, main_tab):
+        """Update FRED historical charts when expanded."""
+        import plotly.graph_objects as go
+
+        if not is_open or main_tab != "tab-regime":
+            return no_update
+
+        try:
+            from services.fred_client import get_fred_historical_data
+
+            # Fetch historical data (2 years)
+            historical_data = get_fred_historical_data(lookback_years=2)
+
+            if not historical_data:
+                # Return empty chart with message
+                fig = go.Figure()
+                fig.add_annotation(
+                    text="Unable to fetch FRED historical data.<br>Please set FRED_API_KEY environment variable.",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5,
+                    showarrow=False,
+                    font=dict(size=14, color="gray"),
+                )
+                fig.update_layout(
+                    height=400,
+                    paper_bgcolor="#1a1a2e",
+                    plot_bgcolor="#1a1a2e",
+                )
+                return fig
+
+            # Create combined chart
+            return create_fred_combined_chart(historical_data)
+
+        except Exception as e:
+            print(f"Error fetching FRED historical data: {e}")
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Error loading charts: {str(e)}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5,
+                showarrow=False,
+                font=dict(size=14, color="red"),
+            )
+            fig.update_layout(
+                height=400,
+                paper_bgcolor="#1a1a2e",
+                plot_bgcolor="#1a1a2e",
+            )
+            return fig
 
     @app.callback(
         Output("analyst-ratings-content", "children"),

@@ -1662,6 +1662,110 @@ def create_regime_tab() -> dbc.Container:
             ], md=4),
         ], className="mb-3"),
 
+        # Row 1.5: FRED Economic Indicators
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("FRED Economic Indicators"),
+                        dbc.Badge(
+                            id="economic-signal-badge",
+                            className="ms-2",
+                        ),
+                        html.Small(
+                            " (Federal Reserve Economic Data)",
+                            className="text-muted ms-2",
+                        ),
+                    ]),
+                    dbc.CardBody([
+                        dbc.Row([
+                            # Yield Curve
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Yield Curve (10Y-2Y)", className="mb-1"),
+                                    html.Div(id="yield-curve-display", className="h4 mb-0"),
+                                    html.Small(id="yield-curve-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+
+                            # Credit Spreads
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Credit Spreads", className="mb-1"),
+                                    html.Div(id="credit-spread-display", className="h5 mb-0"),
+                                    html.Small(id="credit-spread-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+
+                            # Unemployment
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Unemployment", className="mb-1"),
+                                    html.Div(id="unemployment-display", className="h5 mb-0"),
+                                    html.Small(id="unemployment-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+
+                            # Initial Claims
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Jobless Claims", className="mb-1"),
+                                    html.Div(id="claims-display", className="h5 mb-0"),
+                                    html.Small(id="claims-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+
+                            # Consumer Sentiment
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Consumer Sentiment", className="mb-1"),
+                                    html.Div(id="consumer-sentiment-display", className="h5 mb-0"),
+                                    html.Small(id="consumer-sentiment-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+
+                            # Fed Funds
+                            dbc.Col([
+                                html.Div([
+                                    html.H6("Fed Funds Rate", className="mb-1"),
+                                    html.Div(id="fed-funds-display", className="h5 mb-0"),
+                                    html.Small(id="fed-funds-signal", className="text-muted"),
+                                ], className="text-center p-2 border rounded"),
+                            ], md=2),
+                        ]),
+                        html.Hr(className="my-2"),
+                        html.Div(id="economic-summary", className="text-center small"),
+
+                        # Collapsible historical charts section
+                        html.Div([
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-graph-up me-2"),
+                                    "Show Historical Charts",
+                                ],
+                                id="toggle-fred-charts-btn",
+                                color="link",
+                                className="p-0 mt-2",
+                            ),
+                            dbc.Collapse(
+                                dbc.Row([
+                                    # Combined chart view
+                                    dbc.Col([
+                                        dcc.Graph(
+                                            id="fred-combined-chart",
+                                            style={"height": "700px"},
+                                        ),
+                                    ], md=12),
+                                ], className="mt-3"),
+                                id="fred-charts-collapse",
+                                is_open=False,
+                            ),
+                        ]),
+                    ]),
+                ]),
+            ], md=12),
+        ], className="mb-3"),
+
         # Row 2: Market Views and Recommendations
         dbc.Row([
             # Market Views Panel (left)

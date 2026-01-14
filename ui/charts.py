@@ -1333,3 +1333,372 @@ def create_allocation_comparison_chart(
     )
 
     return apply_bb_layout(fig)
+
+
+# =============================================================================
+# FRED Economic Indicator Charts
+# =============================================================================
+
+
+def create_fred_yield_curve_chart(df: "pd.DataFrame") -> go.Figure:
+    """
+    Create yield curve spread historical chart.
+
+    Args:
+        df: DataFrame with 'date' and 'value' columns
+
+    Returns:
+        Plotly figure
+    """
+    import pandas as pd
+
+    fig = go.Figure()
+
+    # Add zero line for reference (inversion threshold)
+    fig.add_hline(y=0, line_dash="dash", line_color=BB_COLORS["red"], opacity=0.7)
+
+    fig.add_trace(go.Scatter(
+        x=df["date"],
+        y=df["value"],
+        mode="lines",
+        name="10Y-2Y Spread",
+        line=dict(color=BB_COLORS["orange"], width=2),
+        fill="tozeroy",
+        fillcolor="rgba(255, 140, 0, 0.2)",
+    ))
+
+    # Add annotation for current value
+    if len(df) > 0:
+        current = df["value"].iloc[-1]
+        status = "Normal" if current > 0 else "INVERTED"
+        color = BB_COLORS["green"] if current > 0 else BB_COLORS["red"]
+
+        fig.add_annotation(
+            x=df["date"].iloc[-1],
+            y=current,
+            text=f"{current:.2f}% ({status})",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=color,
+            font=dict(color=color, size=11),
+            bgcolor=BB_COLORS["background"],
+        )
+
+    fig.update_layout(
+        title="Yield Curve (10Y - 2Y Treasury Spread)",
+        xaxis_title="",
+        yaxis_title="Spread (%)",
+        height=280,
+        margin=dict(l=50, r=30, t=40, b=30),
+        showlegend=False,
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fred_credit_spreads_chart(
+    ig_df: "pd.DataFrame" = None,
+    hy_df: "pd.DataFrame" = None,
+) -> go.Figure:
+    """
+    Create credit spreads historical chart.
+
+    Args:
+        ig_df: Investment grade spread DataFrame
+        hy_df: High yield spread DataFrame
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure()
+
+    if ig_df is not None and not ig_df.empty:
+        fig.add_trace(go.Scatter(
+            x=ig_df["date"],
+            y=ig_df["value"],
+            mode="lines",
+            name="Investment Grade",
+            line=dict(color=BB_COLORS["blue"], width=2),
+        ))
+
+    if hy_df is not None and not hy_df.empty:
+        fig.add_trace(go.Scatter(
+            x=hy_df["date"],
+            y=hy_df["value"],
+            mode="lines",
+            name="High Yield",
+            line=dict(color=BB_COLORS["orange"], width=2),
+        ))
+
+    # Add stress threshold lines
+    fig.add_hline(y=200, line_dash="dot", line_color=BB_COLORS["yellow"], opacity=0.5,
+                  annotation_text="IG Stress", annotation_position="right")
+    fig.add_hline(y=500, line_dash="dot", line_color=BB_COLORS["red"], opacity=0.5,
+                  annotation_text="HY Stress", annotation_position="right")
+
+    fig.update_layout(
+        title="Credit Spreads (Option-Adjusted)",
+        xaxis_title="",
+        yaxis_title="Spread (bps)",
+        height=280,
+        margin=dict(l=50, r=50, t=40, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fred_unemployment_chart(
+    rate_df: "pd.DataFrame" = None,
+    claims_df: "pd.DataFrame" = None,
+) -> go.Figure:
+    """
+    Create unemployment rate and claims historical chart.
+
+    Args:
+        rate_df: Unemployment rate DataFrame
+        claims_df: Initial claims DataFrame
+
+    Returns:
+        Plotly figure with dual y-axes
+    """
+    from plotly.subplots import make_subplots
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    if rate_df is not None and not rate_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=rate_df["date"],
+                y=rate_df["value"],
+                mode="lines",
+                name="Unemployment Rate",
+                line=dict(color=BB_COLORS["red"], width=2),
+            ),
+            secondary_y=False,
+        )
+
+    if claims_df is not None and not claims_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=claims_df["date"],
+                y=claims_df["value"] / 1000,  # Convert to thousands
+                mode="lines",
+                name="Initial Claims (K)",
+                line=dict(color=BB_COLORS["orange"], width=1.5),
+                opacity=0.7,
+            ),
+            secondary_y=True,
+        )
+
+    fig.update_yaxes(title_text="Unemployment Rate (%)", secondary_y=False)
+    fig.update_yaxes(title_text="Initial Claims (K)", secondary_y=True)
+
+    fig.update_layout(
+        title="Labor Market Indicators",
+        xaxis_title="",
+        height=280,
+        margin=dict(l=50, r=50, t=40, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fred_sentiment_chart(df: "pd.DataFrame") -> go.Figure:
+    """
+    Create consumer sentiment historical chart.
+
+    Args:
+        df: DataFrame with 'date' and 'value' columns
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure()
+
+    # Historical average line
+    avg = df["value"].mean() if len(df) > 0 else 80
+
+    fig.add_hline(y=avg, line_dash="dash", line_color=BB_COLORS["muted"], opacity=0.7,
+                  annotation_text=f"Avg: {avg:.0f}", annotation_position="right")
+
+    # Sentiment line with color gradient based on level
+    fig.add_trace(go.Scatter(
+        x=df["date"],
+        y=df["value"],
+        mode="lines",
+        name="Consumer Sentiment",
+        line=dict(color=BB_COLORS["cyan"], width=2),
+        fill="tozeroy",
+        fillcolor="rgba(0, 255, 255, 0.1)",
+    ))
+
+    # Threshold zones
+    fig.add_hline(y=60, line_dash="dot", line_color=BB_COLORS["red"], opacity=0.4)
+    fig.add_hline(y=100, line_dash="dot", line_color=BB_COLORS["green"], opacity=0.4)
+
+    fig.update_layout(
+        title="Consumer Sentiment (U. of Michigan)",
+        xaxis_title="",
+        yaxis_title="Index",
+        height=280,
+        margin=dict(l=50, r=30, t=40, b=30),
+        showlegend=False,
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fred_fed_funds_chart(df: "pd.DataFrame") -> go.Figure:
+    """
+    Create Fed Funds rate historical chart.
+
+    Args:
+        df: DataFrame with 'date' and 'value' columns
+
+    Returns:
+        Plotly figure
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df["date"],
+        y=df["value"],
+        mode="lines",
+        name="Fed Funds Rate",
+        line=dict(color=BB_COLORS["green"], width=2),
+        fill="tozeroy",
+        fillcolor="rgba(0, 255, 0, 0.1)",
+    ))
+
+    # Add current value annotation
+    if len(df) > 0:
+        current = df["value"].iloc[-1]
+        fig.add_annotation(
+            x=df["date"].iloc[-1],
+            y=current,
+            text=f"{current:.2f}%",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=BB_COLORS["green"],
+            font=dict(color=BB_COLORS["green"], size=11),
+            bgcolor=BB_COLORS["background"],
+        )
+
+    fig.update_layout(
+        title="Federal Funds Rate",
+        xaxis_title="",
+        yaxis_title="Rate (%)",
+        height=280,
+        margin=dict(l=50, r=30, t=40, b=30),
+        showlegend=False,
+    )
+
+    return apply_bb_layout(fig)
+
+
+def create_fred_combined_chart(historical_data: dict) -> go.Figure:
+    """
+    Create a combined multi-panel chart for all FRED indicators.
+
+    Args:
+        historical_data: Dict from get_fred_historical_data()
+
+    Returns:
+        Plotly figure with subplots
+    """
+    from plotly.subplots import make_subplots
+
+    fig = make_subplots(
+        rows=3, cols=2,
+        subplot_titles=(
+            "Yield Curve (10Y-2Y)",
+            "Credit Spreads",
+            "Unemployment Rate",
+            "Consumer Sentiment",
+            "Fed Funds Rate",
+            "Initial Claims",
+        ),
+        vertical_spacing=0.12,
+        horizontal_spacing=0.08,
+    )
+
+    # 1. Yield Curve (row 1, col 1)
+    if "yield_curve" in historical_data:
+        df = historical_data["yield_curve"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["orange"], width=1.5),
+                      name="Yield Curve", showlegend=False),
+            row=1, col=1
+        )
+        fig.add_hline(y=0, line_dash="dash", line_color=BB_COLORS["red"],
+                     opacity=0.5, row=1, col=1)
+
+    # 2. Credit Spreads (row 1, col 2)
+    if "credit_spread_ig" in historical_data:
+        df = historical_data["credit_spread_ig"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["blue"], width=1.5),
+                      name="IG Spread"),
+            row=1, col=2
+        )
+    if "credit_spread_hy" in historical_data:
+        df = historical_data["credit_spread_hy"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["orange"], width=1.5),
+                      name="HY Spread"),
+            row=1, col=2
+        )
+
+    # 3. Unemployment (row 2, col 1)
+    if "unemployment_rate" in historical_data:
+        df = historical_data["unemployment_rate"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["red"], width=1.5),
+                      name="Unemployment", showlegend=False),
+            row=2, col=1
+        )
+
+    # 4. Consumer Sentiment (row 2, col 2)
+    if "consumer_sentiment" in historical_data:
+        df = historical_data["consumer_sentiment"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["cyan"], width=1.5),
+                      name="Sentiment", showlegend=False),
+            row=2, col=2
+        )
+
+    # 5. Fed Funds (row 3, col 1)
+    if "fed_funds" in historical_data:
+        df = historical_data["fed_funds"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines",
+                      line=dict(color=BB_COLORS["green"], width=1.5),
+                      name="Fed Funds", showlegend=False),
+            row=3, col=1
+        )
+
+    # 6. Initial Claims (row 3, col 2)
+    if "initial_claims" in historical_data:
+        df = historical_data["initial_claims"]
+        fig.add_trace(
+            go.Scatter(x=df["date"], y=df["value"] / 1000, mode="lines",
+                      line=dict(color=BB_COLORS["orange"], width=1.5),
+                      name="Claims (K)", showlegend=False),
+            row=3, col=2
+        )
+
+    fig.update_layout(
+        height=700,
+        margin=dict(l=50, r=30, t=60, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        title="FRED Economic Indicators - Historical View",
+    )
+
+    return apply_bb_layout(fig)

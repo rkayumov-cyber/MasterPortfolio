@@ -269,6 +269,25 @@ class VolatilityRegime(str, Enum):
     EXTREME = "Extreme"
 
 
+class EconomicIndicators(BaseModel):
+    """Economic indicators from FRED and other sources."""
+
+    yield_curve_spread: Optional[float] = None  # 10Y-2Y spread
+    yield_curve_signal: Optional[str] = None
+    credit_spread_ig: Optional[float] = None  # Investment grade OAS
+    credit_spread_hy: Optional[float] = None  # High yield OAS
+    credit_signal: Optional[str] = None
+    unemployment_rate: Optional[float] = None
+    initial_claims: Optional[int] = None
+    labor_signal: Optional[str] = None
+    consumer_sentiment: Optional[float] = None
+    sentiment_signal: Optional[str] = None
+    fed_funds_rate: Optional[float] = None
+    fed_stance: Optional[str] = None
+    economic_score: float = 0.0  # Composite economic score
+    economic_signals: list[str] = Field(default_factory=list)
+
+
 class RegimeIndicators(BaseModel):
     """Technical indicators for regime detection."""
 
@@ -280,6 +299,7 @@ class RegimeIndicators(BaseModel):
     spy_vs_200sma: float  # % above/below 200 SMA
     spy_vs_50sma: float  # % above/below 50 SMA
     volatility_regime: VolatilityRegime
+    economic: Optional[EconomicIndicators] = None  # FRED economic data
 
 
 class RegimeState(BaseModel):

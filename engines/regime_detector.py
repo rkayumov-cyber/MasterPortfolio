@@ -1,4 +1,4 @@
-"""Market regime detection engine using technical indicators."""
+"""Market regime detection engine using technical and economic indicators."""
 
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -8,10 +8,15 @@ import pandas as pd
 import yfinance as yf
 
 from domain.schemas import (
+    EconomicIndicators,
     MarketRegime,
     RegimeIndicators,
     RegimeState,
     VolatilityRegime,
+)
+from services.fred_client import (
+    calculate_economic_regime_score,
+    get_all_economic_indicators,
 )
 
 
@@ -106,15 +111,20 @@ def classify_volatility_regime(vix_level: float) -> VolatilityRegime:
         return VolatilityRegime.EXTREME
 
 
-def calculate_regime_score(indicators: RegimeIndicators) -> tuple[float, list[str]]:
+def calculate_regime_score(
+    indicators: RegimeIndicators,
+    include_economic: bool = True,
+) -> tuple[float, list[str]]:
     """
-    Calculate regime score based on technical indicators.
+    Calculate regime score based on technical and economic indicators.
 
-    Score ranges from -3 (extremely bearish) to +3 (extremely bullish).
+    Score ranges from -4.5 (extremely bearish) to +4.5 (extremely bullish).
     Returns (score, list of signals).
     """
     score = 0.0
     signals = []
+
+    # === TECHNICAL INDICATORS ===
 
     # VIX component (weight: 1.0)
     if indicators.vix_level < 15:
@@ -160,35 +170,128 @@ def calculate_regime_score(indicators: RegimeIndicators) -> tuple[float, list[st
         score -= 0.5
         signals.append("VIX in top 20%: Fear elevated, risk-off")
 
+    # === ECONOMIC INDICATORS (from FRED) ===
+    if include_economic and indicators.economic:
+        econ = indicators.economic
+        economic_score = econ.economic_score
+        score += economic_score
+        signals.extend(econ.economic_signals)
+
     return score, signals
 
 
-def classify_regime(score: float) -> tuple[MarketRegime, float]:
+def classify_regime(score: float, include_economic: bool = True) -> tuple[MarketRegime, float]:
     """
     Classify market regime based on score.
 
     Returns (regime, confidence).
     """
-    if score >= REGIME_SCORE_THRESHOLDS["bull"]:
-        confidence = min(1.0, (score - REGIME_SCORE_THRESHOLDS["bull"]) / 1.5 + 0.5)
+    # Adjust thresholds when including economic data (wider score range)
+    bull_threshold = REGIME_SCORE_THRESHOLDS["bull"]
+    bear_threshold = REGIME_SCORE_THRESHOLDS["bear"]
+
+    if include_economic:
+        # With economic data, score can range from ~-4.5 to +4.5
+        bull_threshold = 2.0
+        bear_threshold = -2.0
+
+    if score >= bull_threshold:
+        confidence = min(1.0, (score - bull_threshold) / 2.0 + 0.5)
         return MarketRegime.BULL_RISK_ON, confidence
-    elif score <= REGIME_SCORE_THRESHOLDS["bear"]:
-        confidence = min(1.0, (abs(score) - abs(REGIME_SCORE_THRESHOLDS["bear"])) / 1.5 + 0.5)
+    elif score <= bear_threshold:
+        confidence = min(1.0, (abs(score) - abs(bear_threshold)) / 2.0 + 0.5)
         return MarketRegime.BEAR_RISK_OFF, confidence
     else:
         # Neutral regime - confidence based on how close to center
         distance_from_zero = abs(score)
-        confidence = 0.5 + (1 - distance_from_zero / 1.5) * 0.3
+        threshold = bull_threshold  # Use bull threshold for scaling
+        confidence = 0.5 + (1 - distance_from_zero / threshold) * 0.3
         return MarketRegime.NEUTRAL, confidence
 
 
-def detect_regime() -> Optional[RegimeState]:
+def fetch_economic_indicators() -> Optional[EconomicIndicators]:
     """
-    Detect current market regime using technical indicators.
+    Fetch economic indicators from FRED.
+
+    Returns EconomicIndicators object with all available data.
+    """
+    try:
+        econ_data = get_all_economic_indicators()
+
+        # Extract yield curve data
+        yield_curve = econ_data.get("yield_curve")
+        yield_curve_spread = yield_curve.get("current") if yield_curve else None
+        yield_curve_signal = yield_curve.get("signal") if yield_curve else None
+
+        # Extract credit spread data
+        credit = econ_data.get("credit_spreads")
+        credit_ig = None
+        credit_hy = None
+        credit_signal = None
+        if credit:
+            ig_data = credit.get("investment_grade")
+            hy_data = credit.get("high_yield")
+            credit_ig = ig_data.get("current") if ig_data else None
+            credit_hy = hy_data.get("current") if hy_data else None
+            credit_signal = credit.get("overall_signal")
+
+        # Extract unemployment data
+        unemployment = econ_data.get("unemployment")
+        unemployment_rate = None
+        initial_claims = None
+        labor_signal = None
+        if unemployment:
+            rate_data = unemployment.get("unemployment_rate")
+            claims_data = unemployment.get("initial_claims")
+            unemployment_rate = rate_data.get("current") if rate_data else None
+            initial_claims = claims_data.get("current") if claims_data else None
+            labor_signal = unemployment.get("overall_signal")
+
+        # Extract consumer sentiment
+        sentiment = econ_data.get("consumer_sentiment")
+        consumer_sentiment = sentiment.get("current") if sentiment else None
+        sentiment_signal = sentiment.get("signal") if sentiment else None
+
+        # Extract Fed funds data
+        fed = econ_data.get("fed_policy")
+        fed_funds_rate = fed.get("current") if fed else None
+        fed_stance = fed.get("stance") if fed else None
+
+        # Calculate economic regime score
+        economic_score, economic_signals = calculate_economic_regime_score(econ_data)
+
+        return EconomicIndicators(
+            yield_curve_spread=yield_curve_spread,
+            yield_curve_signal=yield_curve_signal,
+            credit_spread_ig=credit_ig,
+            credit_spread_hy=credit_hy,
+            credit_signal=credit_signal,
+            unemployment_rate=unemployment_rate,
+            initial_claims=initial_claims,
+            labor_signal=labor_signal,
+            consumer_sentiment=consumer_sentiment,
+            sentiment_signal=sentiment_signal,
+            fed_funds_rate=fed_funds_rate,
+            fed_stance=fed_stance,
+            economic_score=round(economic_score, 2),
+            economic_signals=economic_signals,
+        )
+
+    except Exception as e:
+        print(f"Error fetching economic indicators: {e}")
+        return None
+
+
+def detect_regime(include_economic: bool = True) -> Optional[RegimeState]:
+    """
+    Detect current market regime using technical and economic indicators.
+
+    Args:
+        include_economic: Whether to include FRED economic data in analysis
 
     Returns RegimeState with regime classification and indicators.
     """
-    # Fetch data
+    # Fetch technical data
     vix_data = fetch_vix_data("1y")
     spy_data = fetch_spy_data("1y")
 
@@ -213,6 +316,11 @@ def detect_regime() -> Optional[RegimeState]:
     # Classify volatility regime
     vol_regime = classify_volatility_regime(current_vix)
 
+    # Fetch economic indicators if requested
+    economic = None
+    if include_economic:
+        economic = fetch_economic_indicators()
+
     # Build indicators object
     indicators = RegimeIndicators(
         vix_level=round(current_vix, 2),
@@ -223,13 +331,14 @@ def detect_regime() -> Optional[RegimeState]:
         spy_vs_200sma=round(spy_vs_200sma, 4),
         spy_vs_50sma=round(spy_vs_50sma, 4),
         volatility_regime=vol_regime,
+        economic=economic,
     )
 
     # Calculate regime score and signals
-    score, signals = calculate_regime_score(indicators)
+    score, signals = calculate_regime_score(indicators, include_economic=include_economic)
 
     # Classify regime
-    regime, confidence = classify_regime(score)
+    regime, confidence = classify_regime(score, include_economic=include_economic)
 
     return RegimeState(
         regime=regime,

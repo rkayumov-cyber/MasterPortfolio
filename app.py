@@ -2,6 +2,10 @@
 
 import dash
 import dash_bootstrap_components as dbc
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from ui.callbacks import register_callbacks
 from ui.layouts import create_app_layout
